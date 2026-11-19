@@ -1,0 +1,23 @@
+# Private working files (not part of the public project)
+HACKATHON_BRIEF.md
+WALLET_SETUP.md
+reports/
+research_notes/
+tools/
+.claude/
+
+# Build output and dependencies
+node_modules/
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+site/.netlify/
+
+# Local secrets, if any ever appear
+.env
+.env.*
+*.key
+*.pem
+
+# OS
+.DS_Store

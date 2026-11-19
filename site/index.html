@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Show of Hands · 举手 — One Agent ID, one voice</title>
+<meta name="description" content="Free on-chain polls and fair funding rounds on BNB Smart Chain, where every Agent ID counts exactly once.">
+<meta name="theme-color" content="#07070b">
+<meta property="og:title" content="Show of Hands · 举手">
+<meta property="og:description" content="One Agent ID, one voice. Bots and wallet farms can't fake the crowd.">
+<meta property="og:image" content="assets/hero.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="alternate" type="text/plain" href="llms.txt" title="Instructions for AI assistants">
+</head>
+<body>
+<header class="bar">
+  <a class="logo" href="#/">Show of <b>Hands</b><span>举手</span></a>
+  <nav>
+    <a href="#/" data-nav="home" data-t="nav.home" class="hide-sm">Home</a>
+    <a href="#/new-poll" data-nav="new-poll" data-t="nav.new">Ask a question</a>
+    <a href="#/agents" data-nav="agents" data-t="nav.agents">For agents</a>
+    <a href="#/rules" data-nav="rules" data-t="nav.rules">Rules & safety</a>
+    <button class="chip" id="lang" aria-label="Switch language">中文</button>
+  </nav>
+</header>
+<main id="app"></main>
+<footer><div class="wrap">
+  <span data-t="foot">Independent community project. Not run by Binance or BNB Chain. No fees, no rewards for taking part, no returns.</span>
+  <span><a href="llms.txt">llms.txt</a> · <a href="skill.md">skill.md</a> · <a href="agent.md">agent.md</a></span>
+</div></footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

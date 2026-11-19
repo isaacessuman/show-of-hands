@@ -1,0 +1,103 @@
+// Public read-only API for AI agents: "what did verified humans answer?"
+// No keys, no writes, no user data. Reads the Polls contract on BNB Smart Chain and adds a verdict.
+import { CONFIG } from "../../config.js";
+import { verdict, DEFAULT_QUORUM } from "../../lib/verdict.js";
+
+const RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
+const SEL = { pollCount: "0x9207891d", getPoll: "0x1a8cbcaa" };
+
+async function ethCall(data) {
+  let last;
+  for (const url of RPCS) {
+    try {
+      const r = await fetch(url, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: CONFIG.polls, data }, "latest"] }),
+        signal: AbortSignal.timeout(6000),
+      });
+      const j = await r.json();
+      if (j.result && j.result !== "0x") return j.result.slice(2);
+      last = new Error(j.error?.message || "empty result");
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+
+// --- minimal ABI decoding for getPoll's return values
+const word = (h, i) => h.slice(i * 64, i * 64 + 64);
+const num = (h, i) => Number(BigInt("0x" + word(h, i)));
+const utf8 = (hex) => new TextDecoder().decode(Uint8Array.from(hex.match(/../g) || [], (b) => parseInt(b, 16)));
+function str(h, byteOff) { const w = byteOff / 32, len = num(h, w); return utf8(h.slice((w + 1) * 64, (w + 1) * 64 + len * 2)); }
+function strArr(h, byteOff) {
+  const w = byteOff / 32, n = num(h, w), base = byteOff + 32;
+  return Array.from({ length: n }, (_, i) => str(h, base + num(h, w + 1 + i)));
+}
+function uintArr(h, byteOff) { const w = byteOff / 32, n = num(h, w); return Array.from({ length: n }, (_, i) => num(h, w + 1 + i)); }
+
+export async function pollCount() { return Number(BigInt("0x" + (await ethCall(SEL.pollCount)))); }
+export async function getPoll(id) {
+  const h = await ethCall(SEL.getPoll + BigInt(id).toString(16).padStart(64, "0"));
+  return {
+    id, creator: "0x" + word(h, 1).slice(24), createdAt: num(h, 2), endsAt: num(h, 3), totalVotes: num(h, 4),
+    question: str(h, num(h, 5)), options: strArr(h, num(h, 6)), tallies: uintArr(h, num(h, 7)),
+  };
+}
+
+const json = (status, body, cache = 15) => new Response(JSON.stringify(body, null, 2), {
+  status,
+  headers: {
+    "content-type": "application/json; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "cache-control": `public, max-age=${cache}`,
+    "netlify-cdn-cache-control": `public, s-maxage=${cache}, stale-while-revalidate=60`,
+  },
+});
+
+export default async (req) => {
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/\/+$/, "");
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, OPTIONS" } });
+  if (req.method !== "GET") return json(405, { error: "Read-only API. Use GET." });
+  const qRaw = url.searchParams.get("quorum");
+  const quorum = qRaw === null ? DEFAULT_QUORUM : Number(qRaw);
+  if (!Number.isInteger(quorum) || quorum < 1 || quorum > 100000) return json(400, { error: "quorum must be a whole number from 1 to 100000" });
+
+  try {
+    if (path === "/api/verdict") {
+      const raw = url.searchParams.get("poll") ?? "latest";
+      const count = await pollCount();
+      if (!count) return json(404, { error: "No polls yet." });
+      if (raw !== "latest" && !/^\d{1,9}$/.test(raw)) return json(400, { error: "poll must be a poll number or 'latest'" });
+      const id = raw === "latest" ? count - 1 : Number(raw);
+      if (id >= count) return json(404, { error: `Poll ${id} does not exist. There are ${count} polls (0 to ${count - 1}).` });
+      const p = await getPoll(id);
+      return json(200, { ...verdict(p, { quorum }), url: `${url.origin}/#/poll/${id}`, contract: CONFIG.polls, chainId: 56 });
+    }
+    if (path === "/api/polls") {
+      const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
+      const count = await pollCount();
+      const ids = Array.from({ length: Math.min(limit, count) }, (_, i) => count - 1 - i);
+      const polls = await Promise.all(ids.map(getPoll));
+      return json(200, {
+        count, contract: CONFIG.polls, chainId: 56,
+        polls: polls.map((p) => { const v = verdict(p, { quorum }); return { poll: v.poll, status: v.status, decided: v.decided, open: v.open, verifiedVoters: v.verifiedVoters, endsAt: v.endsAt, question_UNTRUSTED: v.question_UNTRUSTED, leading: v.leading, url: `${url.origin}/#/poll/${p.id}` }; }),
+      });
+    }
+    return json(200, {
+      name: "Show of Hands verdict API",
+      about: "Ask verified humans, read their answer. Every voter is a distinct Binance Agent ID holder, checked on-chain by the Polls contract.",
+      endpoints: {
+        "GET /api/verdict?poll=<id|latest>&quorum=<n>": "The crowd's answer to one poll, with status, confidence and a plain-English explanation.",
+        "GET /api/polls?limit=<1-50>": "The latest polls with their current status.",
+      },
+      statuses: ["gathering", "leaning", "clear_lead", "too_close", "final", "tie", "no_quorum"],
+      act_when: "decided is true (status final, or clear_lead before the poll closes)",
+      ask: "To ask a question, create a poll with the Show of Hands skill (node scripts/soh.mjs ask ...) or the site's 'Ask a question' page.",
+      docs: `${url.origin}/llms.txt`,
+    }, 300);
+  } catch (e) {
+    return json(502, { error: "Could not read BNB Smart Chain right now. Try again shortly.", detail: String(e.message || e).slice(0, 200) });
+  }
+};
+
+export const config = { path: ["/api", "/api/verdict", "/api/polls"] };

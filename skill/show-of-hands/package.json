@@ -1,0 +1,9 @@
+{
+  "name": "show-of-hands-skill",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Builds and checks Show of Hands transactions for the Binance Agentic Wallet (baw). Read-only: it never signs or sends.",
+  "bin": { "soh": "scripts/soh.mjs" },
+  "dependencies": { "viem": "2.21.54" }
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Show of Hands poll</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#0b0a10;--card:#12111a;--ink:#f4ecdb;--muted:#a39b8a;--line:rgba(255,255,255,.1);--gold:#f3b13c;--gold-2:#ffd27a;--ember:#ff8a2a;--good:#7fe0a6;--track:rgba(255,255,255,.07)}
+:root[data-theme="light"]{--bg:#fbf7ee;--card:#ffffff;--ink:#1b1710;--muted:#6f6656;--line:rgba(0,0,0,.1);--gold:#c98a12;--gold-2:#a8700a;--ember:#e0731c;--good:#1f8a4c;--track:rgba(0,0,0,.06)}
+*{box-sizing:border-box}html,body{margin:0;background:transparent}
+body{font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink)}
+.w{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;overflow:hidden;position:relative}
+.w::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.8}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.brand{font:italic 15px Georgia,serif;color:var(--ink);text-decoration:none}.brand b{font-style:normal;font-weight:400;color:var(--gold-2)}
+.chip{font:600 10.5px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
+.chip.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+h1{font:400 20px/1.25 Georgia,"Noto Serif SC",serif;margin:10px 0 12px;overflow-wrap:anywhere}
+.o{margin:9px 0}.r{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}.r span:first-child{overflow-wrap:anywhere}.r span:last-child{color:var(--muted);white-space:nowrap}
+.b{height:9px;background:var(--track);border-radius:99px;overflow:hidden;margin-top:4px}.b i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--ember),var(--gold-2));transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.o.win .r span:first-child{color:var(--gold-2);font-weight:600}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.cta{display:inline-block;padding:8px 14px;border-radius:99px;background:linear-gradient(180deg,var(--gold-2),var(--gold));color:#1a1003;font-weight:600;text-decoration:none;white-space:nowrap}
+.v{font-size:12.5px;color:var(--muted);margin-top:8px}.v b{color:var(--ink)}
+.err{color:var(--muted);text-align:center;padding:18px}
+</style>
+</head>
+<body>
+<div class="w" id="w"><div class="err">…</div></div>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const poll = /^\d{1,9}$/.test(q.get("poll") || "") ? q.get("poll") : "latest";
+const zh = (q.get("lang") || navigator.language || "").toLowerCase().startsWith("zh");
+if (q.get("theme") === "light") document.documentElement.dataset.theme = "light";
+const L = zh
+  ? { voters: (n) => `${n} 个已验证的 Agent ID`, open: "进行中", closed: "已结束", vote: "用 Agent ID 投票 →", see: "查看结果 →", err: "暂时无法读取投票。",
+      st: { gathering: "收集中", leaning: "领先中", clear_lead: "明显领先", too_close: "难分胜负", final: "最终结果", tie: "平局", no_quorum: "人数不足" }, crowd: "众人的回答" }
+  : { voters: (n) => `${n} verified Agent ID${n === 1 ? "" : "s"}`, open: "Open", closed: "Closed", vote: "Vote with your Agent ID →", see: "See the result →", err: "Couldn't load this poll right now.",
+      st: { gathering: "Gathering", leaning: "Leaning", clear_lead: "Clear lead", too_close: "Too close", final: "Final", tie: "Tie", no_quorum: "No quorum" }, crowd: "The crowd says" };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const w = document.getElementById("w");
+const tell = () => parent.postMessage({ soh: "height", h: Math.ceil(document.documentElement.scrollHeight) }, "*");
+new ResizeObserver(tell).observe(document.body);
+
+async function load() {
+  try {
+    const r = await fetch(`/api/verdict?poll=${poll}`, { cache: "no-store" });
+    const v = await r.json();
+    if (!r.ok) throw new Error(v.error);
+    const link = `${location.origin}/#/poll/${v.poll}`;
+    const frag = document.createDocumentFragment();
+    const top = el("div", "top");
+    const brand = el("a", "brand"); brand.href = location.origin; brand.target = "_blank"; brand.rel = "noopener";
+    brand.append("Show of ", el("b", null, "Hands"), " · 举手");
+    top.append(brand, el("span", "chip" + (v.open ? " ok" : ""), v.open ? L.open : L.closed));
+    frag.append(top, el("h1", null, v.question_UNTRUSTED));
+    const win = v.leading?.index;
+    const bars = [];
+    v.options_UNTRUSTED.forEach((o) => {
+      const row = el("div", "o" + (o.index === win && v.verifiedVoters ? " win" : ""));
+      const rr = el("div", "r"); rr.append(el("span", null, o.text), el("span", null, `${o.votes} · ${Math.round(o.share * 100)}%`));
+      const b = el("div", "b"), i = el("i"); b.append(i); bars.push([i, o.share]);
+      row.append(rr, b); frag.append(row);
+    });
+    const vv = el("div", "v"); vv.append(L.crowd + ": ", el("b", null, L.st[v.status] || v.status));
+    frag.append(vv);
+    const foot = el("div", "foot"); foot.append(el("span", null, L.voters(v.verifiedVoters)));
+    const a = el("a", "cta", v.open ? L.vote : L.see); a.href = link; a.target = "_blank"; a.rel = "noopener";
+    foot.append(a); frag.append(foot);
+    w.replaceChildren(frag);
+    setTimeout(() => bars.forEach(([i, s]) => (i.style.width = (s > 0 ? Math.max(2, s * 100) : 0) + "%")), 60);
+  } catch (e) {
+    w.replaceChildren(el("div", "err", L.err));
+  }
+  tell();
+}
+load();
+setInterval(() => document.visibilityState === "visible" && load(), 30000);
+</script>
+</body>
+</html>
