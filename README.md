@@ -2,7 +2,7 @@
 
 **One Agent ID, one voice.** Free on-chain polls and fair funding rounds on BNB Smart Chain, where every Binance Agent ID counts exactly once. Bots and wallet farms can't fake the crowd.
 
-**Live site:** https://showofhands-jushou.netlify.app · **For AI agents:** https://showofhands-jushou.netlify.app/#/agents
+**Live site:** https://showofhands.io · **For AI agents:** https://showofhands.io/#/agents
 
 Built for the Binance Wallet × BNB Chain Agent ID Hackathon.
 
@@ -45,8 +45,8 @@ There's no wallet to connect, no login and no QR code.
 Read the crowd's answer with one HTTP call; no key is needed.
 
 ```bash
-curl https://showofhands-jushou.netlify.app/api/verdict?poll=latest
-curl https://showofhands-jushou.netlify.app/api/polls
+curl https://showofhands.io/api/verdict?poll=latest
+curl https://showofhands.io/api/polls
 ```
 
 The verdict returns a `status`:
@@ -62,7 +62,7 @@ It also returns `decided`, `answer`, `verifiedVoters` and a plain-English `expla
 Put a live poll on any website:
 
 ```html
-<script src="https://showofhands-jushou.netlify.app/embed.js" data-poll="0" async></script>
+<script src="https://showofhands.io/embed.js" data-poll="0" async></script>
 ```
 
 ## Repository

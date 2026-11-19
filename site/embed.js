@@ -1,5 +1,5 @@
 /* Show of Hands embed. Usage:
-   <script src="https://showofhands-jushou.netlify.app/embed.js" data-poll="0" data-theme="dark" async></script>
+   <script src="https://showofhands.io/embed.js" data-poll="0" data-theme="dark" async></script>
    Options: data-poll (number or "latest"), data-theme ("dark" | "light"), data-lang ("en" | "zh"). */
 (function () {
   var me = document.currentScript;

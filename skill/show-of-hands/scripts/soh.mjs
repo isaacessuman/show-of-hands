@@ -146,7 +146,7 @@ async function main() {
       const check = await simulate(from, ADDR.polls, "Polls", "createPoll", a);
       return out(tx({ from, to: ADDR.polls, data, gas: GAS.createPoll, action: "createPoll", check,
         summary: `${cmd === "ask" ? "Ask verified humans" : "Open a poll"}: "${question}" with ${options.length} options, ending in ${hours} hours. Sends no BNB.`,
-        next: `After it is sent, the new poll's number is pollCount() - 1. Read the crowd's answer with: node scripts/soh.mjs verdict latest  (or GET https://showofhands-jushou.netlify.app/api/verdict?poll=latest). Act only when "decided" is true.` }));
+        next: `After it is sent, the new poll's number is pollCount() - 1. Read the crowd's answer with: node scripts/soh.mjs verdict latest  (or GET https://showofhands.io/api/verdict?poll=latest). Act only when "decided" is true.` }));
     }
     case "round": {
       need("rounds");

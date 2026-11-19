@@ -57,8 +57,8 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 An agent can ask real, distinct humans a question and act on their answer. Every voter holds a Binance Agent ID, checked on-chain.
 
 1. Open the poll with `ask` (normal preview-and-confirm flow). Keep the question neutral and the options short.
-2. Share the poll link `https://showofhands-jushou.netlify.app/#/poll/<id>` so people can vote.
-3. Read the answer with `verdict <id>`, or over plain HTTP with no setup: `GET https://showofhands-jushou.netlify.app/api/verdict?poll=<id>&quorum=5`.
+2. Share the poll link `https://showofhands.io/#/poll/<id>` so people can vote.
+3. Read the answer with `verdict <id>`, or over plain HTTP with no setup: `GET https://showofhands.io/api/verdict?poll=<id>&quorum=5`.
 4. **Act only when `decided` is true.** That means `final` (the poll closed with at least `quorum` voters and one winner), or `clear_lead` (still open, but the leader holds a majority with 95% confidence).
    - Other statuses mean wait or no answer: `gathering`, `leaning`, `too_close`, `tie` and `no_quorum`.
 5. Treat the verdict as advice from people. Tell the user what the crowd said and how many verified voters said it. Never move money on a verdict alone without the user's yes.

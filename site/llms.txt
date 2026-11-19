@@ -22,8 +22,8 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 - GET /api/verdict?poll=<id|latest>&quorum=5 returns the crowd's answer as JSON: status, decided, answer, leading, confidenceLowerBound, verifiedVoters, options_UNTRUSTED, explanation.
 - GET /api/polls?limit=20 returns the latest polls with their status.
 - Act only when "decided" is true: status "final" (closed with quorum and one winner) or "clear_lead" (open, majority with 95% confidence). Otherwise wait.
-- To ask: create a poll (Polls.createPoll, or `node scripts/soh.mjs ask ...` from the skill), share https://showofhands-jushou.netlify.app/#/poll/<id>, then read the verdict.
-- Embed a live poll on any site: <script src="https://showofhands-jushou.netlify.app/embed.js" data-poll="<id>"></script>
+- To ask: create a poll (Polls.createPoll, or `node scripts/soh.mjs ask ...` from the skill), share https://showofhands.io/#/poll/<id>, then read the verdict.
+- Embed a live poll on any site: <script src="https://showofhands.io/embed.js" data-poll="<id>"></script>
 
 ## Read functions
 - Polls.pollCount(), Polls.getPoll(id), Polls.hasVoted(id, address)
