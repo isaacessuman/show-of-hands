@@ -61,7 +61,7 @@ function shortAddr(a) {
   const s = String(a || "");
   return /^0x[0-9a-fA-F]{40}$/.test(s) ? `${s.slice(0, 6)}…${s.slice(-4)}` : clip(s, 14) || "someone";
 }
-const whoOf = (ev) => clip(ev.handle, 32) || shortAddr(ev.who);
+const whoOf = (ev) => clip(ev.handle, 32) || clip(ev.who, 32); // the API already shortens addresses
 function span(cls, text) { const e = document.createElement("span"); if (cls) e.className = cls; e.textContent = text; return e; }
 
 /* ---------------- textures (paper fibre + seal edge), like the main site ---------------- */

@@ -1295,7 +1295,7 @@ async function leaguePage(week) {
   const votes = rows.reduce((a, x) => a + x.votes, 0);
   const left = L.weekEnd ? Math.max(0, L.weekEnd - Date.now() / 1000) : 0;
   const leftTxt = zhT() ? `${Math.floor(left / 86400)} 天 ${Math.floor((left % 86400) / 3600)} 时` : `${Math.floor(left / 86400)}d ${Math.floor((left % 86400) / 3600)}h`;
-  const who = (x) => `<a href="${CONFIG.explorer}/address/${x.voter}" target="_blank" rel="noopener" class="untrusted">${esc(x.handle || short(x.voter))}</a>`;
+  const who = (x) => `<span class="untrusted">${esc(x.who)}</span>`;
   const podium = rows.slice(0, 3).map((x, i) => `<div class="pod p${i + 1} rv"><div class="pm">${seal(CN_NUM[x.rank - 1] || String(x.rank))}</div><div class="pn">${who(x)}</div><div class="pp">${t("lgPtsU")(x.points)}</div><div class="ps">${nv(x.votes)} · ${t("lgRead")} ${x.matches}</div></div>`).join("");
   const table = rows.length > 3 ? `<div class="tbl-scroll"><table class="ledger lg"><thead><tr><th>${t("lgRank")}</th><th>${t("lgWho")}</th><th>${t("lgPts")}</th><th>${t("lgVotes")}</th><th>${t("lgRead")}</th><th>${t("lgWeeks")}</th></tr></thead><tbody>
       ${rows.slice(3).map((x) => `<tr><td class="rk">${x.rank}</td><td>${who(x)}</td><td><b>${x.points}</b></td><td>${x.votes}</td><td>${x.matches}</td><td>${x.weeks}</td></tr>`).join("")}</tbody></table></div>` : "";

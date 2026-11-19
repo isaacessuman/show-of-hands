@@ -111,6 +111,9 @@ export function pollsFrom(idx) {
 }
 
 export const handleName = (idx, a) => idx.handles[a] || "";
+// Public output shows an Agent ID name OR a shortened address, never a name next to a full wallet address:
+// the hackathon rules forbid packaging Agent ID as a way to look up other people's wallets by name.
+const label = (idx, a) => handleName(idx, a) || shortAddr(a);
 export const shortAddr = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 
 // --- weekly league
@@ -150,18 +153,19 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
   for (const v of idx.votes) {
     (weeksOf[v.voter] ||= new Set()).add(isoWeek(v.t || nowSec).key);
     if (range && !(v.t >= range.start && v.t < range.end)) continue;
-    const r = (rows[v.voter] ||= { voter: v.voter, handle: handleName(idx, v.voter), points: 0, votes: 0, matches: 0 });
+    const r = (rows[v.voter] ||= { key: v.voter, who: label(idx, v.voter), named: !!handleName(idx, v.voter), points: 0, votes: 0, matches: 0 });
     r.votes++; r.points += SCORING.vote;
     if (winners[v.p] === v.o) { r.matches++; r.points += SCORING.match; }
   }
   const leaders = Object.values(rows)
-    .map((r) => ({ ...r, weeks: weeksOf[r.voter]?.size || 0 }))
-    .sort((a, b) => b.points - a.points || b.matches - a.matches || b.weeks - a.weeks || a.voter.localeCompare(b.voter));
+    .map((r) => ({ ...r, weeks: weeksOf[r.key]?.size || 0 }))
+    .sort((a, b) => b.points - a.points || b.matches - a.matches || b.weeks - a.weeks || a.key.localeCompare(b.key))
+    .map(({ key, ...r }) => r);
   leaders.forEach((r, i) => (r.rank = i && leaders[i - 1].points === r.points && leaders[i - 1].matches === r.matches ? leaders[i - 1].rank : i + 1));
   const inWeek = (p) => range ? (p.endsAt >= range.start && (p.t || 0) < range.end) : true;
   const questions = Object.values(polls).filter(inWeek).sort((a, b) => b.id - a.id).map((p) => ({
     poll: p.id, question_UNTRUSTED: p.question, options_UNTRUSTED: p.options, tallies: p.tallies, verifiedVoters: p.totalVotes,
-    endsAt: p.endsAt, open: p.verdict.open, status: p.verdict.status, creator: p.creator, creatorHandle: handleName(idx, p.creator),
+    endsAt: p.endsAt, open: p.verdict.open, status: p.verdict.status, creator: label(idx, p.creator),
   }));
   return {
     week: range ? range.key : "all", weekStart: range?.start ?? null, weekEnd: range?.end ?? null, currentWeek: cur.key,
@@ -173,10 +177,10 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
 /** Latest events for the vote wall, newest last. */
 export function events(idx, { since = 0, limit = 60 } = {}) {
   const polls = idx.polls, out = [];
-  for (const p of Object.values(polls)) if (p.block > since) out.push({ type: "poll", poll: p.id, block: p.block, time: p.t || 0, who: p.creator, handle: handleName(idx, p.creator), question_UNTRUSTED: p.question, tx: p.tx });
+  for (const p of Object.values(polls)) if (p.block > since) out.push({ type: "poll", poll: p.id, block: p.block, time: p.t || 0, who: label(idx, p.creator), handle: handleName(idx, p.creator), question_UNTRUSTED: p.question, tx: p.tx });
   for (const v of idx.votes) if (v.b > since) {
     const p = polls[v.p];
-    out.push({ type: "vote", poll: v.p, block: v.b, time: v.t || 0, who: v.voter, handle: handleName(idx, v.voter), option: v.o, optionText_UNTRUSTED: p?.options[v.o] ?? "", question_UNTRUSTED: p?.question ?? "", tx: v.tx });
+    out.push({ type: "vote", poll: v.p, block: v.b, time: v.t || 0, who: label(idx, v.voter), handle: handleName(idx, v.voter), option: v.o, optionText_UNTRUSTED: p?.options[v.o] ?? "", question_UNTRUSTED: p?.question ?? "", tx: v.tx });
   }
   out.sort((a, b) => a.block - b.block || (a.type === "poll" ? -1 : 1));
   return out.slice(-limit);
