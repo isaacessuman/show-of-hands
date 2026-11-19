@@ -38,4 +38,4 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 ## More
 - skill.md: full skill with commands and the error table
 - agent.md: short version
-- Source code: contracts/ and skill/ in the project repository
+- Source code: https://github.com/isaacessuman/show-of-hands
