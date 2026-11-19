@@ -44,6 +44,9 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 | `create-poll --from W --question "…" --options "A\|B\|C" [--hours 72]` | Open a poll (2–8 options, 1 hour to 30 days, one open poll per Agent ID) | 0 |
 | `ask --from W --question "…" --options "A\|B" [--hours 72]` | Same as `create-poll`, framed as an agent asking verified humans; prints how to read the answer | 0 |
 | `verdict <id\|latest> [--quorum 5]` | The crowd's answer: `status`, `decided`, `answer`, confidence | – |
+| `today` | Question of the Day and the longest daily voting streaks (read-only) | – |
+| `check <0xcontract>` | Crowd Check: what verified humans said about a contract. `signal` is `looks_safe`, `not_sure`, `avoid`, `see_answer`, `pending`, `no_answer` or `no_check` | – |
+| `ask-check <0xcontract> --from W [--name "…"] [--hours 72] [--lang zh]` | Open a crowd check on a contract (answers: Looks safe / Not sure / Avoid) | 0 |
 | `post <id\|latest>` | Ready-made X posts: the question, and the crowd's answer once decided, with links that show a live picture of the poll. Prints only; never posts | – |
 | `round <id>` | A round's rules and projects | – |
 | `back <round> --split "pid:bnb,pid:bnb" --from W` | Back one or more approved projects | the total |
@@ -51,6 +54,9 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 | `claim <round> <project> --from W` | Project wallet collects backing + matching after finalise | 0 |
 | `refund <round> <project> --from W` | Get your backing back if the project was delisted or the round cancelled | 0 |
 | `finalise <round> --from W` | Settle a round, open to anyone from 24 hours after it ends | 0 |
+| `rep [wallet]` | The user's own crowd-accuracy record: linked ERC-8004 agent, polls ready to score, accuracy % | – |
+| `rep-link <agentId> --from W` | Link this Agent ID's voting record to an ERC-8004 agent the same wallet owns | 0 |
+| `rep-attest --from W` | Write the score for the next closed polls into the ERC-8004 Reputation Registry (tag `crowd-accuracy`) | 0 |
 | `abi` | Contract addresses and function list | – |
 
 ## Ask the crowd (for agents)
@@ -67,6 +73,14 @@ An agent can ask real, distinct humans a question and act on their answer. Every
 
 When `back` splits the payment across several projects, always show the user the per-project breakdown from `summary` before the preview.
 
+## Crowd Check (before a mint, buy or approval)
+
+When the user (or you) is about to interact with an unfamiliar contract, run `check <contract>` first and tell the user what the crowd said, with the number of verified voters. `avoid` is a strong reason to stop and ask the user. `looks_safe` is **not** an audit and never a reason to skip the normal preview and the user's yes. If there is no check yet, offer to open one with `ask-check`.
+
+## Crowd reputation (ERC-8004)
+
+CrowdScore turns a voting record into an ERC-8004 reputation entry: how often this Agent ID voted for the crowd's final answer. A poll counts once it has closed with at least 5 voters and one clear top answer. Polls are scored in order from where the last score ended, so nobody can pick only the polls they got right. Run `rep` for the user's own wallet only, never to look someone up. Link once with `rep-link`, then `rep-attest` whenever new polls have closed. Both send no BNB and still go through preview and the user's yes.
+
 ## Error table
 
 | Error | Plain-language fix |
@@ -79,6 +93,9 @@ When `back` splits the payment across several projects, always show the user the
 | `OwnProject` | You can't back your own project. |
 | `WrongStatus` | That project isn't approved, or it was delisted. |
 | `ReviewNotOver` | Finalise opens 24 hours after the round ends. |
+| `NotAgentOwner` | This wallet doesn't own that ERC-8004 agent. Use one owned by the same wallet. |
+| `NotLinked` / `OwnerChanged` | Link (again) with `rep-link` from the wallet that owns the ERC-8004 agent. |
+| `PollStillOpen` | A poll in the range is still open; wait for it to close. |
 | `RegistryUnavailable` | The Agent ID registry didn't answer. Try later; no money moved. |
 | baw `351818` | Developer Mode or auto-reject is blocking contract calls. Check Developer Mode in the Binance App. |
 | baw `351804` | The wallet is over Developer Mode's balance cap, or the daily limit is reached. |
@@ -86,6 +103,7 @@ When `back` splits the payment across several projects, always show the user the
 ## Owner powers (disclosure)
 
 - **The contracts have no owner and no admin.** They can't be paused, upgraded or drained, and they take no fee.
+- CrowdScore also has no owner: it only reads Polls and writes scores to the ERC-8004 Reputation Registry, which is run by a third party and is upgradeable.
 - **Each funding round has a steward:** the Agent ID holder who opened it and seeded its pool. Before the round is finalised, the steward can:
   - approve projects;
   - delist a project, which unlocks full refunds for its backers and publishes the reason on-chain;

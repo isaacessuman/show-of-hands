@@ -2,7 +2,8 @@
 // No keys, no writes, no user data. Reads the Polls contract on BNB Smart Chain and adds a verdict.
 import { CONFIG } from "../../config.js";
 import { verdict, DEFAULT_QUORUM } from "../../lib/verdict.js";
-import { getIndex, league, events } from "../../lib/chainindex.mjs";
+import { getIndex, league, events, today, checksFor, recentChecks } from "../../lib/chainindex.mjs";
+import { isAddress } from "../../lib/check.js";
 
 const RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
 const SEL = { pollCount: "0x9207891d", getPoll: "0x1a8cbcaa" };
@@ -96,6 +97,22 @@ export default async (req) => {
       const idx = await getIndex({ fresh: 20000 });
       return json(200, { ...league(idx, { week, quorum }), syncing: idx.syncing, contract: CONFIG.polls, chainId: 56 }, 30);
     }
+    if (path === "/api/today") {
+      const idx = await getIndex({ fresh: 10000 });
+      const d = today(idx, CONFIG.official, { quorum });
+      return json(200, { ...d, url: d.poll === null ? null : `${url.origin}/#/poll/${d.poll}`, link: d.poll === null ? null : `${url.origin}/p/${d.poll}`,
+        about: "Question of the Day: one fresh poll a day from the Show of Hands Agent ID. Voting on any day keeps your streak alive." }, 15);
+    }
+    if (path === "/api/check") {
+      const c = (url.searchParams.get("contract") || "").trim();
+      if (!c) { const idx = await getIndex({ fresh: 10000 }); return json(200, { recent: recentChecks(idx, { quorum }), usage: "GET /api/check?contract=0x..." }, 15); }
+      if (!isAddress(c)) return json(400, { error: "contract must be a 0x address (40 hex characters)" });
+      const idx = await getIndex({ fresh: 10000 });
+      const r = checksFor(idx, c, { quorum });
+      return json(200, { ...r, contractUrl: `${CONFIG.explorer}/address/${r.contract}`, page: `${url.origin}/#/check/${r.contract}`,
+        signals: { looks_safe: "Most verified voters said it looks safe.", not_sure: "The crowd is unsure.", avoid: "Most verified voters said avoid it.", see_answer: "Decided, but the poll used its own answers: read answer.text_UNTRUSTED.", pending: "A check is open; no answer yet.", no_answer: "Checks closed without a clear answer.", no_check: "Nobody has asked the crowd about this contract yet." },
+        warning: "A crowd signal, not an audit. Use it as one input among others, never as the only check, and never move a user's money on it without their yes." }, 15);
+    }
     return json(200, {
       name: "Show of Hands verdict API",
       about: "Ask verified humans, read their answer. Every voter is a distinct Binance Agent ID holder, checked on-chain by the Polls contract.",
@@ -103,7 +120,9 @@ export default async (req) => {
         "GET /api/verdict?poll=<id|latest>&quorum=<n>": "The crowd's answer to one poll, with status, confidence and a plain-English explanation.",
         "GET /api/polls?limit=<1-50>": "The latest polls with their current status.",
         "GET /api/events?since=<block>&limit=<1-200>": "The latest polls and votes, with each voter's Agent ID name. Powers the live vote wall.",
-        "GET /api/league?week=<current|all|2026-W48>": "The weekly Crowd's Answer league: points per Agent ID and this week's questions.",
+        "GET /api/league?week=<current|all|2026-W48>": "The weekly Crowd's Answer league: points and daily streaks per Agent ID, and this week's questions.",
+        "GET /api/today": "Question of the Day: today's poll from the Show of Hands Agent ID, plus the longest daily voting streaks.",
+        "GET /api/check?contract=<0x...>": "Crowd Check: what verified humans said about one contract (signal: looks_safe, not_sure, avoid, pending, no_check...). Without a contract: the newest checks.",
       },
       statuses: ["gathering", "leaning", "clear_lead", "too_close", "final", "tie", "no_quorum"],
       act_when: "decided is true (status final, or clear_lead before the poll closes)",
@@ -115,4 +134,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league"] };
+export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league", "/api/today", "/api/check"] };

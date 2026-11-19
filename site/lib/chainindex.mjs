@@ -3,6 +3,7 @@
 // The index is kept in Netlify Blobs when available (so each request only scans new blocks), else in memory.
 import { CONFIG } from "../config.js";
 import { verdict, DEFAULT_QUORUM } from "./verdict.js";
+import { parseCheck, mentions, signalOf, norm } from "./check.js";
 
 export const START_BLOCK = 134429000; // a little before the Polls contract's first event (19 Nov 2026)
 const CHUNK = 20000;                   // public RPCs cap eth_getLogs at 50k blocks; stay well under
@@ -127,6 +128,21 @@ export function isoWeek(sec) {
 
 export const SCORING = { vote: 1, match: 2 };
 
+/** Daily streaks (UTC days with at least one vote). A streak stays alive until a whole day passes with no vote. */
+export function streaks(idx, nowSec = Math.floor(Date.now() / 1000)) {
+  const days = {};
+  for (const v of idx.votes) (days[v.voter] ||= new Set()).add(Math.floor((v.t || nowSec) / 86400));
+  const today = Math.floor(nowSec / 86400), out = {};
+  for (const [voter, set] of Object.entries(days)) {
+    const d = [...set].sort((a, b) => a - b);
+    let best = 1, run = 1;
+    for (let i = 1; i < d.length; i++) { run = d[i] === d[i - 1] + 1 ? run + 1 : 1; best = Math.max(best, run); }
+    const last = d[d.length - 1];
+    out[voter] = { streak: last >= today - 1 ? run : 0, best, votedToday: last === today, days: d.length };
+  }
+  return out;
+}
+
 /**
  * Points: 1 for every vote, plus 2 more when the poll closes with a clear crowd answer ("final") and you voted for it.
  * There is nothing to win and no money involved: it is a public record of who shows up and reads the crowd well.
@@ -157,8 +173,9 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
     r.votes++; r.points += SCORING.vote;
     if (winners[v.p] === v.o) { r.matches++; r.points += SCORING.match; }
   }
+  const st = streaks(idx, nowSec);
   const leaders = Object.values(rows)
-    .map((r) => ({ ...r, weeks: weeksOf[r.key]?.size || 0 }))
+    .map((r) => ({ ...r, weeks: weeksOf[r.key]?.size || 0, streak: st[r.key]?.streak || 0, bestStreak: st[r.key]?.best || 0 }))
     .sort((a, b) => b.points - a.points || b.matches - a.matches || b.weeks - a.weeks || a.key.localeCompare(b.key))
     .map(({ key, ...r }) => r);
   leaders.forEach((r, i) => (r.rank = i && leaders[i - 1].points === r.points && leaders[i - 1].matches === r.matches ? leaders[i - 1].rank : i + 1));
@@ -170,8 +187,53 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
   return {
     week: range ? range.key : "all", weekStart: range?.start ?? null, weekEnd: range?.end ?? null, currentWeek: cur.key,
     players: leaders.length, leaders: leaders.slice(0, 100), questions, scoring: SCORING,
+    streakLeaders: topStreaks(idx, st),
     rules: "1 point for every vote. 2 more points when a poll closes with a clear crowd answer and you voted for it. One Agent ID, one entry. No prizes, no money: a public record of who shows up and reads the crowd well.",
   };
+}
+
+function topStreaks(idx, st, n = 10) {
+  return Object.entries(st).filter(([, s]) => s.streak > 0)
+    .sort((a, b) => b[1].streak - a[1].streak || b[1].best - a[1].best || a[0].localeCompare(b[0]))
+    .slice(0, n).map(([a, s]) => ({ who: label(idx, a), streak: s.streak, best: s.best, votedToday: s.votedToday }));
+}
+
+/** Question of the Day: the newest poll from the project's own Agent ID, preferring one that is still open. */
+export function today(idx, official, { nowSec = Math.floor(Date.now() / 1000), quorum = DEFAULT_QUORUM } = {}) {
+  const polls = pollsFrom(idx);
+  const mine = Object.values(polls).filter((p) => norm(p.creator) === norm(official)).sort((a, b) => b.id - a.id);
+  const p = mine.find((x) => nowSec < x.endsAt) || mine[0];
+  const st = streaks(idx, nowSec);
+  const out = { streakLeaders: topStreaks(idx, st, 5), dayEndsAt: (Math.floor(nowSec / 86400) + 1) * 86400 };
+  if (!p) return { poll: null, ...out };
+  const v = verdict(p, { quorum, nowSec });
+  return { poll: p.id, open: v.open, endsAt: p.endsAt, question_UNTRUSTED: p.question, options_UNTRUSTED: p.options, tallies: p.tallies,
+    verifiedVoters: p.totalVotes, status: v.status, decided: v.decided, leading: v.leading, ...out };
+}
+
+/** Crowd checks about one contract (newest first), plus a one-word summary an agent can branch on. */
+export function checksFor(idx, contract, { nowSec = Math.floor(Date.now() / 1000), quorum = DEFAULT_QUORUM } = {}) {
+  const polls = pollsFrom(idx), addr = norm(contract);
+  const list = Object.values(polls).filter((p) => parseCheck(p.question) === addr || mentions(p.question, addr)).sort((a, b) => b.id - a.id).map((p) => {
+    const v = verdict(p, { quorum, nowSec });
+    const winner = v.decided && v.leading ? v.leading.index : null;
+    return { poll: p.id, crowdCheck: parseCheck(p.question) === addr, open: v.open, endsAt: p.endsAt, status: v.status, decided: v.decided,
+      verifiedVoters: p.totalVotes, question_UNTRUSTED: p.question, options_UNTRUSTED: p.options, tallies: p.tallies,
+      answer: winner === null ? null : { index: winner, text_UNTRUSTED: p.options[winner], share: v.leading.share }, signal: signalOf(p.options, winner) };
+  });
+  const decided = list.find((c) => c.decided);
+  const open = list.find((c) => c.open);
+  const signal = decided ? decided.signal : open ? "pending" : list.length ? "no_answer" : "no_check";
+  return { contract: addr, signal, basedOnPoll: decided ? decided.poll : open ? open.poll : null, checks: list };
+}
+
+/** The newest crowd-check polls. */
+export function recentChecks(idx, { limit = 12, nowSec = Math.floor(Date.now() / 1000), quorum = DEFAULT_QUORUM } = {}) {
+  return Object.values(pollsFrom(idx)).filter((p) => parseCheck(p.question)).sort((a, b) => b.id - a.id).slice(0, limit).map((p) => {
+    const v = verdict(p, { quorum, nowSec }), winner = v.decided && v.leading ? v.leading.index : null;
+    return { poll: p.id, contract: parseCheck(p.question), open: v.open, endsAt: p.endsAt, status: v.status, verifiedVoters: p.totalVotes,
+      question_UNTRUSTED: p.question, options_UNTRUSTED: p.options, tallies: p.tallies, signal: signalOf(p.options, winner) };
+  });
 }
 
 /** Latest events for the vote wall, newest last. */

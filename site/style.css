@@ -517,3 +517,48 @@ table.lg td.rk{font:400 20px var(--f-display);color:var(--wash)}
 .lgrules li:last-child{border-bottom:0}
 .xpanel .cta{display:flex;flex-wrap:wrap;gap:10px}
 @media (max-width:700px){.podium{flex-direction:column;align-items:stretch}.podium .pod{max-width:none}.pod.p1,.pod.p2,.pod.p3{order:0}}
+
+/* ---------- question of the day ---------- */
+.qotd-wrap{padding-top:clamp(40px,6vw,72px)}
+.qotd{border-top:1px solid var(--ink);padding-top:22px}
+.qhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.qclock{font:500 13px var(--f-ui);letter-spacing:.08em;color:var(--seal);font-variant-numeric:tabular-nums}
+.qgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:clamp(20px,3vw,40px);align-items:start}
+.qcard{display:block;text-decoration:none;color:inherit;border:1px solid var(--rule);background:color-mix(in srgb,var(--paper-3) 75%,transparent);padding:clamp(20px,2.6vw,32px);min-width:0;transition:border-color .2s}
+a.qcard:hover{border-color:var(--ink)}
+.qcard .q{font:400 clamp(24px,2.8vw,36px)/1.2 var(--f-display);margin:12px 0 18px;letter-spacing:-.01em}
+.qcard.empty .q{font-size:clamp(18px,2vw,24px);color:var(--ink-2);margin:0}
+.qside{min-width:0}
+.streaks{list-style:none;margin:10px 0 0;padding:0;counter-reset:s}
+.streaks li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule-2);counter-increment:s}
+.streaks li::before{content:counter(s);font:400 16px var(--f-display);color:var(--wash);width:22px;flex:none}
+.streaks li span{flex:1;min-width:0;overflow-wrap:anywhere}
+.streaks li b{font-weight:600;color:var(--seal);white-space:nowrap}
+table.lg small.best{color:var(--wash);font-size:12px}
+@media (max-width:800px){.qgrid{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- crowd check ---------- */
+.ckform{max-width:760px}
+.ckrow{display:flex;gap:10px;margin-top:8px}
+.ckrow .inp{flex:1;min-width:0;font-family:var(--f-mono,ui-monospace,monospace);font-size:15px}
+.ckres{display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(18px,3vw,36px);align-items:center;margin-top:clamp(32px,5vw,56px);padding:clamp(22px,3vw,36px);border:1px solid var(--rule);border-left:4px solid var(--wash);background:color-mix(in srgb,var(--paper-3) 75%,transparent)}
+.ckres h2{font-size:clamp(32px,4vw,52px);margin:6px 0 8px}
+.ckres p{margin:0 0 8px;color:var(--ink-2)}
+.ckres .addr{font-size:13px;overflow-wrap:anywhere;color:var(--wash)}
+.ckseal{width:clamp(72px,9vw,108px);aspect-ratio:1;display:grid;place-items:center;font:400 clamp(40px,5vw,64px)/1 var(--f-brush);color:var(--paper);background:var(--wash);border-radius:6px;transform:rotate(-4deg)}
+.ckres.sig-looks_safe{border-left-color:var(--ink)}.ckres.sig-looks_safe .ckseal{background:var(--ink)}
+.ckres.sig-avoid{border-left-color:var(--seal)}.ckres.sig-avoid .ckseal{background:var(--seal)}
+.ckres.sig-pending .ckseal{background:transparent;color:var(--seal);border:2px solid var(--seal)}
+.ckask .preview-q{font:400 18px/1.35 var(--f-display);margin:6px 0 18px;color:var(--ink-2)}
+@media (max-width:600px){.ckrow{flex-direction:column}.ckres{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- CrowdScore (ERC-8004 reputation) ---------- */
+.rep .two{align-items:start}
+.rep h2{font-size:clamp(30px,3.6vw,46px);line-height:1.08;margin:8px 0 0;max-width:20ch}
+.repres{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:center;margin-top:22px;padding-top:20px;border-top:1px solid var(--rule-2)}
+.repres p{margin:0 0 6px;color:var(--ink-2)}
+.repnum{font:400 clamp(48px,6vw,72px)/1 var(--f-display);color:var(--seal);letter-spacing:-.02em;min-width:2.2ch}
+.repstep{margin-top:22px;padding-top:18px;border-top:1px solid var(--rule-2)}
+.repstep h3{font-size:19px;margin:0 0 8px}
+.repstep .ckrow .inp{max-width:200px}
+@media (max-width:600px){.repstep .ckrow .inp{max-width:none}}

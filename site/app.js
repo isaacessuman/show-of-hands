@@ -4,6 +4,7 @@ import { CONFIG } from "./config.js";
 import { ABI } from "./abi.js";
 import { verdict } from "./lib/verdict.js";
 import { drawCard, toBlob } from "./share.js";
+import { CHECK, isAddress, norm, cleanName } from "./lib/check.js";
 
 const client = createPublicClient({ chain: bsc, transport: http(CONFIG.rpc) });
 const $app = document.getElementById("app");
@@ -12,13 +13,39 @@ let lang = localGet("soh-lang") || ((navigator.language || "").toLowerCase().sta
 // ------------------------------------------------------------------ text
 const T = {
   en: {
-    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League",
+    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League", "nav.check": "Crowd check",
+    qdK: "Question of the Day", qdNone: "Today's question is on its way. Meanwhile, every vote on any poll keeps your streak alive.", qdVote: "Vote today", qdSee: "See the result", qdLeft: (h, m) => `${h}h ${m}m left today`,
+    qdStreak: "Voting on any day keeps your streak alive. Miss a whole day and it starts again.", qdTop: "Longest streaks", qdDays: (n) => `${n} ${n === 1 ? "day" : "days"}`, qdNoStreak: "No streaks yet. Vote today to start one.",
+    lgStreak: "Streak", lgBest: "Best",
+    ckH1: "Is this contract safe? <em>Ask the crowd.</em>", ckLede: "Before you or your agent mints, buys or approves anything, see what verified humans said about the contract. One Agent ID, one vote, so bots can’t fake a good review.",
+    ckLabel: "Contract address on BNB Chain", ckPh: "0x…", ckGo: "Check", ckBad: "That isn't a contract address. It should be 0x followed by 40 letters and numbers.",
+    ckSig: { looks_safe: ["Looks safe", "Most verified voters said this contract looks safe."], not_sure: ["Not sure", "The crowd couldn't agree it is safe."], avoid: ["Avoid", "Most verified voters said to avoid this contract."], see_answer: ["Answered", "The crowd decided. Read the answer below."], pending: ["Being checked", "A crowd check is open. Vote, or come back when it closes."], no_answer: ["No clear answer", "Checks closed without a clear answer."], no_check: ["Not checked yet", "Nobody has asked the crowd about this contract yet."] },
+    ckSeal: { looks_safe: "安", not_sure: "疑", avoid: "避", see_answer: "答", pending: "审", no_answer: "空", no_check: "无" },
+    ckAskH: "Ask the crowd about it", ckAskP: "Opens a crowd check with three answers: Looks safe, Not sure, Avoid. Costs only the network fee.", ckName: "Project name (optional)", ckNamePh: "e.g. Pocket AI mint",
+    ckHours: "Open for", ckMake: "Get instruction", ckWarn: "A crowd signal, not an audit. Use it as one input among others, and never as the only check.",
+    ckRecent: "Recent crowd checks", ckNone: "No crowd checks yet. Paste a contract above to start the first one.", ckChecks: "Polls about this contract", ckOnScan: "View contract on BscScan",
+    ckAgent: "For agents", ckAgentP: "One call before any mint or buy:",
     leagueH1: "The Crowd’s Answer <em>league.</em>", leagueLede: "New questions every week. Every vote scores a point, and reading the crowd right scores more. One Agent ID is one entry, so the board can’t be farmed.",
     lgWeek: "This week", lgAll: "All time", lgPlayers: "Players", lgVotes: "Votes", lgQs: "Questions", lgEnds: "Week ends in", lgEver: "Since launch",
     lgRank: "Rank", lgWho: "Agent ID", lgPts: "Points", lgRead: "Read right", lgWeeks: "Weeks", lgPtsU: (n) => `${n} ${n === 1 ? "pt" : "pts"}`,
     lgEmpty: "No votes yet this week. Cast the first one and take the top spot.", lgEmptyAll: "No votes yet.",
     lgRulesH: "How points work", lgRules: ["1 point for every vote you cast.", "2 more points when a poll closes with a clear crowd answer and you voted for it.", "One Agent ID, one entry. Fake wallets can’t join, so nobody can farm the board.", "No prizes and no money. It’s a public record of who shows up and who reads the crowd well.", "Weeks run Monday to Sunday, UTC."],
     lgQH: "This week’s questions", lgQAll: "All questions", lgQEmpty: "No questions this week yet. Ask the first one.", lgApi: "For agents", lgWall: "Open the live vote wall", lgSyncing: "Still reading older blocks from the chain. Numbers may grow for a minute.",
+    rpK: "Take your record with you", rpH: "Turn your League record into ERC-8004 reputation",
+    rpP: "CrowdScore reads your votes straight from the Polls contract and writes one number into the official ERC-8004 Reputation Registry: how often you voted for the crowd’s final answer. Any app or agent that reads ERC-8004 can see it. Nobody can edit it, including us.",
+    rpHow: ["A poll counts once it has closed with at least 5 voters and one clear top answer.", "Polls are counted in order, from where your last score ended. You can’t skip the ones you got wrong.", "Linking needs an ERC-8004 agent record that this same wallet owns. Anyone can send the score update afterwards."],
+    rpLabel: "Your Agentic Wallet address", rpGo: "Read my record", rpBad: "That isn’t a 0x address.",
+    rpSoon: "CrowdScore goes live on BNB Chain shortly. The rules above are final; the steps below unlock when it is deployed.",
+    rpNoId: "This wallet has no Agent ID, so it has no voting record.",
+    rpLinked: (n) => `Linked to ERC-8004 agent #${n}`, rpUnlinked: "Not linked to an ERC-8004 agent yet",
+    rpScore: (m, c) => `${m} of ${c} decided polls matched the crowd`, rpNone: "No decided polls to score yet in this range. Vote in more questions and come back after they close.",
+    rpRange: (a, b) => `Ready to score polls ${a}–${b}`, rpUpTo: (a) => `Already scored up to poll ${a}. Nothing new has closed since.`,
+    rpWait: (id) => `Poll ${id} is still open, so the next score waits until it closes.`,
+    rpLinkH: "Step 1 · Link your ERC-8004 agent", rpAgent: "ERC-8004 agent number", rpAgentPh: "e.g. 42", rpLinkBtn: "Make link instruction",
+    rpAttH: "Step 2 · Write the score on-chain", rpAttBtn: "Make score instruction",
+    rpLinkWhat: (n) => `link this Agent ID's voting record to ERC-8004 agent #${n}. It sends no BNB.`,
+    rpAttWhat: (a, b) => `write the crowd-accuracy score for polls ${a}–${b} into the ERC-8004 Reputation Registry. It sends no BNB.`,
+    rpSim: "Checked against the chain: this would fail.", rpFix: { NotAgentOwner: "This wallet doesn’t own that ERC-8004 agent. Use the agent number owned by this same wallet.", NoAgentID: "This wallet has no Agent ID.", NotLinked: "Do step 1 first: link an ERC-8004 agent.", OwnerChanged: "That ERC-8004 agent changed hands. Link again from the wallet that owns it now.", PollStillOpen: "A poll in the range is still open. Wait until it closes." }, rpOk: "Checked against the chain: this would go through.",
     xH: "Post it on X", xP: "The link shows a live picture of this poll on X and Telegram, with the latest count.", xAsk: "Post the question", xVerdict: "Post the crowd’s answer", copyLink: "Copy link",
     xAskText: (q) => `Agents ask, humans answer. One Agent ID, one vote on BNB Chain:\n\n“${q}”`,
     xVerdictText: (a, pct, n) => `The crowd has answered: “${a}” (${pct}% of ${n} verified Agent IDs). Read on-chain, not guessed.`,
@@ -131,13 +158,39 @@ const T = {
     signoff: "This is an independent community project. Poll and round results are not official judging of anything. Enforced by contract code, not by our promises.",
   },
   zh: {
-    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛",
+    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛", "nav.check": "众人鉴定",
+    qdK: "每日一问", qdNone: "今天的问题马上就来。在此之前，任何一次投票都能保持你的连续记录。", qdVote: "今天投票", qdSee: "查看结果", qdLeft: (h, m) => `今天还剩 ${h} 小时 ${m} 分`,
+    qdStreak: "每天投一次票就能保持连续记录，整整一天不投就会重新开始。", qdTop: "最长连续投票", qdDays: (n) => `${n} 天`, qdNoStreak: "还没有连续记录。今天投一票就开始。",
+    lgStreak: "连续", lgBest: "最长",
+    ckH1: "这个合约安全吗？<em>问问众人。</em>", ckLede: "在你或你的智能体铸造、购买或授权之前，先看看已验证的真人怎么评价这个合约。一个 Agent ID 一票，机器人刷不出好评。",
+    ckLabel: "BNB Chain 上的合约地址", ckPh: "0x…", ckGo: "查询", ckBad: "这不是合约地址。应为 0x 加 40 位字母和数字。",
+    ckSig: { looks_safe: ["看起来安全", "多数已验证投票者认为这个合约看起来安全。"], not_sure: ["不确定", "众人未能达成它安全的共识。"], avoid: ["避开", "多数已验证投票者建议避开这个合约。"], see_answer: ["已有答案", "众人已作出决定，见下方答案。"], pending: ["鉴定中", "鉴定正在进行。去投一票，或等结束后再来看。"], no_answer: ["没有明确答案", "鉴定已结束，但没有明确答案。"], no_check: ["尚未鉴定", "还没有人就这个合约询问众人。"] },
+    ckSeal: { looks_safe: "安", not_sure: "疑", avoid: "避", see_answer: "答", pending: "审", no_answer: "空", no_check: "无" },
+    ckAskH: "发起众人鉴定", ckAskP: "发起一个鉴定投票，三个选项：看起来安全、不确定、避开。只需网络手续费。", ckName: "项目名称（可选）", ckNamePh: "例如：Pocket AI 铸造",
+    ckHours: "开放时长", ckMake: "生成指令", ckWarn: "这是众人的信号，不是审计。只能作为参考之一，不能作为唯一依据。",
+    ckRecent: "最近的鉴定", ckNone: "还没有鉴定。在上方粘贴合约地址，发起第一个。", ckChecks: "关于这个合约的投票", ckOnScan: "在 BscScan 查看合约",
+    ckAgent: "给智能体", ckAgentP: "铸造或购买前调用一次：",
     leagueH1: "众人之答<em>周联赛。</em>", leagueLede: "每周都有新问题。每投一票得 1 分，猜中众人的答案再加分。一个 Agent ID 只算一个参赛者，所以没人能刷榜。",
     lgWeek: "本周", lgAll: "总榜", lgPlayers: "参赛者", lgVotes: "投票", lgQs: "问题", lgEnds: "本周剩余", lgEver: "上线以来",
     lgRank: "名次", lgWho: "Agent ID", lgPts: "积分", lgRead: "猜中", lgWeeks: "参与周数", lgPtsU: (n) => `${n} 分`,
     lgEmpty: "本周还没有人投票。投下第一票，拿下榜首。", lgEmptyAll: "还没有投票。",
     lgRulesH: "积分规则", lgRules: ["每投一票得 1 分。", "投票结束且众人给出明确答案时，如果你投的正是这个答案，再得 2 分。", "一个 Agent ID 只算一个参赛者。假钱包进不来，所以没人能刷榜。", "没有奖品，不涉及任何资金。这只是一份公开记录：谁常来，谁最懂众人。", "每周从周一到周日（UTC）。"],
     lgQH: "本周的问题", lgQAll: "全部问题", lgQEmpty: "本周还没有问题。来提第一个吧。", lgApi: "给智能体", lgWall: "打开实时投票墙", lgSyncing: "仍在读取较早的区块，数字可能会在一分钟内增加。",
+    rpK: "把你的记录带走", rpH: "把排行榜记录变成 ERC-8004 声誉",
+    rpP: "CrowdScore 直接从投票合约读取你的投票，并向官方 ERC-8004 声誉注册表写入一个数字：你有多少次投中了众人的最终答案。任何读取 ERC-8004 的应用或智能体都能看到。没人能修改，包括我们。",
+    rpHow: ["投票结束、至少 5 人参与、且有唯一领先答案时，才计入。", "按顺序计算，从上一次计分结束的地方开始。投错的问题不能跳过。", "绑定需要一个由同一钱包持有的 ERC-8004 智能体记录。之后任何人都可以提交分数更新。"],
+    rpLabel: "你的 Agentic Wallet 地址", rpGo: "读取我的记录", rpBad: "这不是 0x 地址。",
+    rpSoon: "CrowdScore 即将在 BNB Chain 上线。上面的规则已定；部署后即可使用下面的步骤。",
+    rpNoId: "这个钱包没有 Agent ID，所以没有投票记录。",
+    rpLinked: (n) => `已绑定 ERC-8004 智能体 #${n}`, rpUnlinked: "尚未绑定 ERC-8004 智能体",
+    rpScore: (m, c) => `${c} 个已定案的问题中，${m} 个与众人一致`, rpNone: "这个范围内还没有可计分的已定案问题。多参与几次投票，等结束后再来。",
+    rpRange: (a, b) => `可计分：第 ${a}–${b} 号问题`, rpUpTo: (a) => `已计分至第 ${a} 号问题，之后还没有新结束的问题。`,
+    rpWait: (id) => `第 ${id} 号问题仍在进行，下一次计分要等它结束。`,
+    rpLinkH: "第一步 · 绑定你的 ERC-8004 智能体", rpAgent: "ERC-8004 智能体编号", rpAgentPh: "例如 42", rpLinkBtn: "生成绑定指令",
+    rpAttH: "第二步 · 把分数写上链", rpAttBtn: "生成计分指令",
+    rpLinkWhat: (n) => `把这个 Agent ID 的投票记录绑定到 ERC-8004 智能体 #${n}。不发送任何 BNB。`,
+    rpAttWhat: (a, b) => `把第 ${a}–${b} 号问题的众人准确率写入 ERC-8004 声誉注册表。不发送任何 BNB。`,
+    rpSim: "已在链上模拟：这笔操作会失败。", rpFix: { NotAgentOwner: "这个钱包不持有该 ERC-8004 智能体。请使用由同一钱包持有的智能体编号。", NoAgentID: "这个钱包没有 Agent ID。", NotLinked: "请先完成第一步：绑定 ERC-8004 智能体。", OwnerChanged: "该 ERC-8004 智能体已转手。请用现在持有它的钱包重新绑定。", PollStillOpen: "范围内有问题仍在进行，请等它结束。" }, rpOk: "已在链上模拟：这笔操作可以成功。",
     xH: "发到 X", xP: "这个链接在 X 和 Telegram 上会显示投票的实时图片和最新票数。", xAsk: "发布这个问题", xVerdict: "发布众人的答案", copyLink: "复制链接",
     xAskText: (q) => `智能体提问，真人回答。BNB Chain 上一个 Agent ID 一票：\n\n“${q}”`,
     xVerdictText: (a, pct, n) => `众人已经回答：“${a}”（${n} 个已验证 Agent ID 中的 ${pct}%）。链上可查，不是猜的。`,
@@ -482,7 +535,7 @@ async function home() {
     : `<div class="blank"><div class="mk" aria-hidden="true">筹</div><div><h3>${t("noRounds")}</h3><p>${t("noRoundsP")}</p><a class="btn sm" href="#/round/0">${t("seeExample")} <span class="arr">→</span></a></div></div>`;
   const first = polls[0];
   setTimeout(() => {
-    inkHand(st.votes); whaleTest(); countUp(); growBars($app);
+    inkHand(st.votes); whaleTest(); countUp(); growBars($app); loadToday();
     fetch("/api/verdict?poll=latest").then((r) => (r.ok ? r.json() : null)).then((j) => { const el = document.getElementById("agJson"); if (el && j) el.innerHTML = `GET /api/verdict?poll=latest\n\n${jsonHTML({ poll: j.poll, status: j.status, decided: j.decided, answer: j.answer, verifiedVoters: j.verifiedVoters, quorum: j.quorum, open: j.open })}`; }).catch(() => {});
   });
   return `
@@ -511,6 +564,8 @@ async function home() {
     </div>
     <div class="strip-cap"><span>${t("stripLive")}</span>${first ? `<span>${esc(t("stripClose")(first.id, first.open, fmtDate(first.endsAt)))}</span>` : ""}</div>
   </section>
+
+  <section class="wrap qotd-wrap" aria-label="${esc(t("qdK"))}"><div class="qotd rv" id="qotd"><div class="label">${t("qdK")} <span class="cn">每日一问</span></div><p class="note">${t("loading")}</p></div></section>
 
   <section class="sec" id="whale"><div class="wrap">
     <div class="sec-head rv"><div><div class="label">${t("whaleEyebrow")} <span class="cn">巨鲸测试</span></div><h2 class="h2">${t("whaleH2")}</h2></div><p class="lede">${t("whaleSub")}</p></div>
@@ -1296,10 +1351,11 @@ async function leaguePage(week) {
   const left = L.weekEnd ? Math.max(0, L.weekEnd - Date.now() / 1000) : 0;
   const leftTxt = zhT() ? `${Math.floor(left / 86400)} 天 ${Math.floor((left % 86400) / 3600)} 时` : `${Math.floor(left / 86400)}d ${Math.floor((left % 86400) / 3600)}h`;
   const who = (x) => `<span class="untrusted">${esc(x.who)}</span>`;
-  const podium = rows.slice(0, 3).map((x, i) => `<div class="pod p${i + 1} rv"><div class="pm">${seal(CN_NUM[x.rank - 1] || String(x.rank))}</div><div class="pn">${who(x)}</div><div class="pp">${t("lgPtsU")(x.points)}</div><div class="ps">${nv(x.votes)} · ${t("lgRead")} ${x.matches}</div></div>`).join("");
-  const table = rows.length > 3 ? `<div class="tbl-scroll"><table class="ledger lg"><thead><tr><th>${t("lgRank")}</th><th>${t("lgWho")}</th><th>${t("lgPts")}</th><th>${t("lgVotes")}</th><th>${t("lgRead")}</th><th>${t("lgWeeks")}</th></tr></thead><tbody>
-      ${rows.slice(3).map((x) => `<tr><td class="rk">${x.rank}</td><td>${who(x)}</td><td><b>${x.points}</b></td><td>${x.votes}</td><td>${x.matches}</td><td>${x.weeks}</td></tr>`).join("")}</tbody></table></div>` : "";
+  const podium = rows.slice(0, 3).map((x, i) => `<div class="pod p${i + 1} rv"><div class="pm">${seal(CN_NUM[x.rank - 1] || String(x.rank))}</div><div class="pn">${who(x)}</div><div class="pp">${t("lgPtsU")(x.points)}</div><div class="ps">${nv(x.votes)} · ${t("lgRead")} ${x.matches}${x.streak ? ` · ${t("lgStreak")} ${x.streak}` : ""}</div></div>`).join("");
+  const table = rows.length > 3 ? `<div class="tbl-scroll"><table class="ledger lg"><thead><tr><th>${t("lgRank")}</th><th>${t("lgWho")}</th><th>${t("lgPts")}</th><th>${t("lgVotes")}</th><th>${t("lgRead")}</th><th>${t("lgStreak")}</th><th>${t("lgWeeks")}</th></tr></thead><tbody>
+      ${rows.slice(3).map((x) => `<tr><td class="rk">${x.rank}</td><td>${who(x)}</td><td><b>${x.points}</b></td><td>${x.votes}</td><td>${x.matches}</td><td>${x.streak ? `${x.streak} <small class="best">/ ${x.bestStreak}</small>` : "—"}</td><td>${x.weeks}</td></tr>`).join("")}</tbody></table></div>` : "";
   const P = (q) => ({ id: q.poll, open: q.open, total: q.verifiedVoters, endsAt: q.endsAt, question: q.question_UNTRUSTED, options: q.options_UNTRUSTED, tallies: q.tallies });
+  setTimeout(wireRep);
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.league"))}<h1>${t("leagueH1")}</h1><p class="lede" style="margin-top:20px;max-width:56ch">${t("leagueLede")}</p></div><div class="bigmark" aria-hidden="true">榜</div></div>
     <div class="seg lgseg" role="group" aria-label="${esc(t("nav.league"))}"><button type="button" aria-pressed="${!all}" onclick="location.hash='#/league'">${t("lgWeek")}${all ? "" : ` · ${esc(L.week)}`}</button><button type="button" aria-pressed="${all}" onclick="location.hash='#/league/all'">${t("lgAll")}</button></div>
@@ -1308,6 +1364,7 @@ async function leaguePage(week) {
     <div class="two" style="margin-top:clamp(40px,6vw,72px)">
       <div>${rows.length ? `<div class="podium">${podium}</div>${table}` : `<div class="blank"><div class="mk" aria-hidden="true">榜</div><div><h3>${all ? t("lgEmptyAll") : t("lgEmpty")}</h3><a class="btn sm" href="#/">${t("backHome")} <span class="arr">→</span></a></div></div>`}</div>
       <aside class="stack sticky">
+        <div class="panel"><div class="label">${t("qdTop")} <span class="cn">连</span></div>${streakList(L.streakLeaders)}<p class="note" style="margin-top:12px">${t("qdStreak")}</p></div>
         <div class="panel"><div class="label">${t("lgRulesH")} <span class="cn">规</span></div><ul class="lgrules">${t("lgRules").map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
         <div class="panel"><a class="btn ink sm" href="/wall.html${zhT() ? "?lang=zh" : ""}">${t("lgWall")} <span class="arr">→</span></a>
           <p class="pmeta2" style="margin:16px 0 0"><span>${t("lgApi")}:</span><a href="/api/league?week=${all ? "all" : "current"}" target="_blank" rel="noopener"><code>GET /api/league</code></a></p></div>
@@ -1315,20 +1372,190 @@ async function leaguePage(week) {
     </div>
     <div class="sec-head" style="margin-top:clamp(64px,8vw,110px)"><div><div class="label">${all ? t("lgQAll") : t("lgQH")} <span class="cn">问</span></div></div></div>
     ${qs.length ? `<div class="plist rv">${qs.map((q) => pollCard(P(q), false)).join("")}</div>` : `<div class="blank"><div class="mk" aria-hidden="true">问</div><div><h3>${t("lgQEmpty")}</h3><a class="btn sm" href="#/new-poll">${t("nav.new")} <span class="arr">→</span></a></div></div>`}
+    ${repHTML()}
   </div>`;
+}
+
+// ------------------------------------------------------------ CrowdScore: voting record → ERC-8004 reputation
+function repHTML() {
+  return `<section class="rep rv" id="rep" style="margin-top:clamp(64px,8vw,110px)">
+    <div class="two"><div><div class="label">${t("rpK")} <span class="cn">誉</span></div><h2 class="h2">${t("rpH")}</h2><p class="lede" style="margin-top:16px">${t("rpP")}</p>
+      <ul class="lgrules" style="margin-top:18px">${t("rpHow").map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      <p class="pmeta2" style="margin-top:16px"><span>CrowdScore:</span><a href="${CONFIG.explorer}/address/${CONFIG.crowdScore}#code" target="_blank" rel="noopener"><code>${CONFIG.crowdScore.slice(0, 6)}…${CONFIG.crowdScore.slice(-4)}</code></a></p></div>
+    <div class="panel"><form id="rpForm" novalidate><label class="flabel" for="rpAddr">${t("rpLabel")}</label>
+      <div class="ckrow"><input class="inp" id="rpAddr" placeholder="0x…" autocomplete="off" spellcheck="false"><button class="btn ink" type="submit">${t("rpGo")} <span class="arr">→</span></button></div>
+      <div class="err" id="rpErr" role="alert"></div></form><div id="rpOut" aria-live="polite"></div></div></div></section>`;
+}
+let repLive = null;
+async function repDeployed() {
+  if (repLive === null) { try { const c = await client.getCode({ address: CONFIG.crowdScore }); repLive = !!c && c !== "0x"; } catch { repLive = false; } }
+  return repLive;
+}
+async function wireRep() {
+  const f = document.getElementById("rpForm"), out = document.getElementById("rpOut"); if (!f) return;
+  if (!(await repDeployed())) { out.innerHTML = `<p class="note" style="margin-top:16px">${t("rpSoon")}</p>`; f.querySelectorAll("input,button").forEach((x) => (x.disabled = true)); return; }
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const v = document.getElementById("rpAddr").value.trim(), err = document.getElementById("rpErr");
+    err.textContent = "";
+    if (!isAddress(v)) { err.textContent = t("rpBad"); return; }
+    out.innerHTML = `<p class="note" style="margin-top:16px">…</p>`;
+    try { out.innerHTML = await repRecord(v); wireRepSteps(v); }
+    catch (x) { out.innerHTML = `<p class="note red" style="margin-top:16px">${esc(String(x?.shortMessage || x?.message || x))}</p>`; }
+  });
+}
+let repState = null;
+async function repRecord(wallet) {
+  const voice = await read(CONFIG.polls, "Polls", "voiceOf", [wallet]);
+  if (/^0x0+$/.test(voice)) return `<p class="note" style="margin-top:16px">${t("rpNoId")}</p>`;
+  const [link, from, count] = await Promise.all([read(CONFIG.crowdScore, "CrowdScore", "links", [voice]), read(CONFIG.crowdScore, "CrowdScore", "next", [voice]), read(CONFIG.polls, "Polls", "pollCount")]);
+  const last = from + 100n < count ? from + 100n : count;
+  const ids = []; for (let i = from; i < last; i++) ids.push(i);
+  const open = await Promise.all(ids.map((i) => read(CONFIG.polls, "Polls", "isOpen", [i])));
+  const k = open.indexOf(true), to = k === -1 ? last : from + BigInt(k);
+  let pv = null; if (to > from) pv = await read(CONFIG.crowdScore, "CrowdScore", "preview", [voice, to]);
+  const linked = link[1] !== "0x0000000000000000000000000000000000000000";
+  repState = { voice, from, to, linked, polls: Number(to - from) };
+  const pct = pv && pv[2] > 0 ? Math.round((pv[3] * 100) / pv[2]) : null;
+  return `<div class="repres">
+      <div class="repnum">${pct === null ? "—" : pct + "%"}</div>
+      <div><p><b>${linked ? esc(t("rpLinked")(String(link[0]))) : esc(t("rpUnlinked"))}</b></p>
+        <p>${pv && pv[2] > 0 ? esc(t("rpScore")(pv[3], pv[2])) : esc(t("rpNone"))}</p>
+        <p class="note">${pv && pv[2] > 0 ? esc(t("rpRange")(String(from), String(to - 1n))) : to > from ? "" : esc(t("rpUpTo")(String(from)))}${k !== -1 ? " " + esc(t("rpWait")(String(to))) : ""}</p></div></div>
+    <form class="repstep" id="rpLink" novalidate><h3>${t("rpLinkH")}</h3><div class="ckrow"><input class="inp sm" id="rpAgent" inputmode="numeric" placeholder="${esc(t("rpAgentPh"))}" aria-label="${esc(t("rpAgent"))}"><button class="btn sm" type="submit">${t("rpLinkBtn")}</button></div><div id="rpLinkOut" aria-live="polite"></div></form>
+    ${pv && pv[2] > 0 ? `<form class="repstep" id="rpAtt" novalidate><h3>${t("rpAttH")}</h3><button class="btn seal-btn sm" type="submit">${t("rpAttBtn")} <span class="arr">→</span></button><div id="rpAttOut" aria-live="polite"></div></form>` : ""}`;
+}
+/** Simulate from the user's wallet first. A call that would fail gets an explanation, never an instruction. */
+async function repSim(account, functionName, args) {
+  try { await client.simulateContract({ account, address: CONFIG.crowdScore, abi: ABI.CrowdScore, functionName, args }); return { ok: true, html: `<p class="note" style="margin-top:10px">${t("rpOk")}</p>` }; }
+  catch (e) {
+    const n = e?.cause?.data?.errorName || e?.shortMessage || "reverted", fix = t("rpFix")[n];
+    return { ok: false, html: `<p class="note red" style="margin-top:10px">${t("rpSim")} <code>${esc(n)}</code>${fix ? `<br>${esc(fix)}` : ""}</p>` };
+  }
+}
+function wireRepSteps(wallet) {
+  const l = document.getElementById("rpLink");
+  l?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const n = document.getElementById("rpAgent").value.trim(), box = document.getElementById("rpLinkOut");
+    if (!/^\d{1,30}$/.test(n)) { box.innerHTML = `<p class="err">${t("rpAgent")}?</p>`; return; }
+    const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "link", args: [BigInt(n)] });
+    const sim = await repSim(wallet, "link", [BigInt(n)]);
+    box.innerHTML = sim.html + (sim.ok ? slip(instruction({ to: CONFIG.crowdScore, data, gas: CONFIG.gas.link, what: t("rpLinkWhat")(n) })) : "");
+  });
+  const a = document.getElementById("rpAtt");
+  a?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const S = repState, box = document.getElementById("rpAttOut");
+    const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "attest", args: [S.voice, S.to] });
+    const gas = Math.min(10_000_000, 300_000 + 90_000 * S.polls);
+    const sim = await repSim(wallet, "attest", [S.voice, S.to]);
+    box.innerHTML = sim.html + (sim.ok ? slip(instruction({ to: CONFIG.crowdScore, data, gas, what: t("rpAttWhat")(String(S.from), String(S.to - 1n)) })) : "");
+  });
+}
+
+// ------------------------------------------------------------ Question of the Day (home band)
+function streakList(rows) {
+  if (!rows || !rows.length) return `<p class="note">${t("qdNoStreak")}</p>`;
+  return `<ol class="streaks">${rows.map((r) => `<li><span class="untrusted">${esc(r.who)}</span><b>${esc(t("qdDays")(r.streak))}</b></li>`).join("")}</ol>`;
+}
+async function loadToday() {
+  const box = document.getElementById("qotd"); if (!box) return;
+  let d = null;
+  try { const r = await fetch("/api/today"); d = r.ok ? await r.json() : null; } catch {}
+  if (!document.body.contains(box)) return;
+  const left = d ? Math.max(0, d.dayEndsAt - Date.now() / 1000) : 0;
+  const clock = t("qdLeft")(Math.floor(left / 3600), Math.floor((left % 3600) / 60));
+  const main = d && d.poll !== null && d.open
+    ? `<a class="qcard" href="#/poll/${d.poll}"><div class="pmeta" style="margin:0"><span class="pill open">${t("open")}</span><span>${nv(d.verifiedVoters)}</span><span>${t("endsIn")} ${esc(fmtDate(d.endsAt))}</span></div>
+        <div class="q untrusted">${esc(d.question_UNTRUSTED)}</div>${barsHTML(d.options_UNTRUSTED, d.tallies)}<span class="btn seal-btn sm" style="margin-top:18px">${t("qdVote")} <span class="arr">→</span></span></a>`
+    : `<div class="qcard empty"><div class="q">${t("qdNone")}</div>${d && d.poll !== null ? `<a class="btn sm" href="#/poll/${d.poll}" style="margin-top:14px">${t("qdSee")} <span class="arr">→</span></a>` : ""}</div>`;
+  box.innerHTML = `<div class="qhead"><div class="label">${t("qdK")} <span class="cn">每日一问</span></div><span class="qclock">${esc(clock)}</span></div>
+    <div class="qgrid">${main}<div class="qside"><div class="label">${t("qdTop")} <span class="cn">连</span></div>${streakList(d?.streakLeaders)}<p class="note">${t("qdStreak")}</p>
+    <a class="link" href="#/league">${t("nav.league")} →</a></div></div>`;
+  growBars(box);
+}
+
+// ------------------------------------------------------------ Crowd Check page
+async function checkPage(addr) {
+  let res = null, recent = [];
+  try {
+    const r = await fetch(addr ? `/api/check?contract=${addr}` : "/api/check");
+    const j = r.ok ? await r.json() : null;
+    if (addr) res = j; else recent = j?.recent || [];
+  } catch {}
+  setTimeout(() => wireCheck(addr));
+  const P = (q) => ({ id: q.poll, open: q.open, total: q.verifiedVoters, endsAt: q.endsAt, question: q.question_UNTRUSTED, options: q.options_UNTRUSTED, tallies: q.tallies });
+  let result = "";
+  if (addr && res) {
+    const [h, p] = t("ckSig")[res.signal] || ["", ""];
+    const top = res.checks.find((c) => c.poll === res.basedOnPoll);
+    result = `<div class="ckres sig-${res.signal} rv">
+        <div class="ckseal" aria-hidden="true">${esc(t("ckSeal")[res.signal] || "?")}</div>
+        <div><div class="label">${t("vTitle")}</div><h2>${esc(h)}</h2><p>${esc(p)}${top?.answer ? ` <b class="untrusted">“${esc(top.answer.text_UNTRUSTED)}”</b> · ${Math.round(top.answer.share * 100)}% · ${esc(nv(top.verifiedVoters))}` : ""}</p>
+        <p class="mono addr">${esc(addr)} · <a href="${CONFIG.explorer}/address/${addr}" target="_blank" rel="noopener">${t("ckOnScan")} ↗</a></p></div></div>
+      ${res.checks.length ? `<div class="label" style="margin-top:40px">${t("ckChecks")}</div><div class="plist">${res.checks.map((c) => pollCard(P(c), false)).join("")}</div>` : ""}
+      ${res.signal === "pending" ? "" : askCheckHTML(addr)}`;
+  }
+  return `<div class="wrap">
+    <div class="doc-head"><div>${crumb(t("nav.check"))}<h1>${t("ckH1")}</h1><p class="lede" style="margin-top:20px;max-width:56ch">${t("ckLede")}</p></div><div class="bigmark" aria-hidden="true">鉴</div></div>
+    <form class="ckform" id="ckForm" novalidate><label class="flabel" for="ckAddr">${t("ckLabel")}</label>
+      <div class="ckrow"><input class="inp" id="ckAddr" placeholder="${esc(t("ckPh"))}" value="${esc(addr)}" autocomplete="off" spellcheck="false" inputmode="text"><button class="btn ink" type="submit">${t("ckGo")} <span class="arr">→</span></button></div>
+      <div class="err" id="ckErr" role="alert"></div></form>
+    ${result}
+    ${addr ? "" : `<div class="sec-head" style="margin-top:clamp(48px,7vw,90px)"><div><div class="label">${t("ckRecent")} <span class="cn">鉴</span></div></div></div>
+      ${recent.length ? `<div class="plist rv">${recent.map((c) => pollCard(P(c), false)).join("")}</div>` : `<div class="blank"><div class="mk" aria-hidden="true">鉴</div><div><h3>${t("ckNone")}</h3></div></div>`}`}
+    <div class="two" style="margin-top:clamp(48px,7vw,90px)">
+      <div><div class="label">${t("ckAgent")} <span class="cn">智能体</span></div><p class="lede" style="margin-bottom:16px">${t("ckAgentP")}</p>${codeBlock(`curl ${location.origin}/api/check?contract=${addr || "0x…"}`)}</div>
+      <p class="note red" style="align-self:end">${t("ckWarn")}</p></div>
+  </div>`;
+}
+function askCheckHTML(addr) {
+  return `<div class="panel ckask" style="margin-top:40px"><h3>${t("ckAskH")}</h3><p>${t("ckAskP")}</p>
+    <form id="ckAsk" novalidate><div class="field"><label class="flabel" for="ckName">${t("ckName")}</label><input class="inp sm" id="ckName" maxlength="40" placeholder="${esc(t("ckNamePh"))}"></div>
+      <div class="field"><span class="flabel">${t("ckHours")}</span><div class="presets" role="group" aria-label="${esc(t("ckHours"))}">${[[24, "24h"], [72, "72h"], [168, t("d7")]].map(([h, l]) => `<button type="button" data-h="${h}" aria-pressed="${h === 72}">${l}</button>`).join("")}</div></div>
+      <p class="preview-q untrusted" id="ckPrev"></p>
+      <button class="btn seal-btn" type="submit">${t("ckMake")} <span class="arr">→</span></button><div id="ckInstr" aria-live="polite"></div></form></div>`;
+}
+function wireCheck(addr) {
+  const f = document.getElementById("ckForm"); if (!f) return;
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const v = document.getElementById("ckAddr").value.trim();
+    if (!isAddress(v)) { document.getElementById("ckErr").textContent = t("ckBad"); return; }
+    location.hash = `#/check/${norm(v)}`;
+  });
+  const a = document.getElementById("ckAsk"); if (!a) return;
+  let hours = 72;
+  const L = CHECK[lang === "zh" ? "zh" : "en"];
+  const q = () => L.q(addr, cleanName(document.getElementById("ckName").value));
+  const show = () => { document.getElementById("ckPrev").textContent = q(); };
+  show();
+  document.getElementById("ckName").addEventListener("input", show);
+  a.querySelector(".presets").addEventListener("click", (e) => { const b = e.target.closest("[data-h]"); if (!b) return; hours = +b.dataset.h; a.querySelectorAll(".presets button").forEach((x) => x.setAttribute("aria-pressed", String(x === b))); });
+  a.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const endsAt = now() + BigInt(Math.max(5400, hours * 3600));
+    const data = encodeFunctionData({ abi: ABI.Polls, functionName: "createPoll", args: [q(), L.options, endsAt] });
+    const box = document.getElementById("ckInstr");
+    box.innerHTML = slip(instruction({ to: CONFIG.polls, data, gas: CONFIG.gas.createPoll,
+      what: lang === "zh" ? `发起众人鉴定：合约 ${addr}，开放 ${hours} 小时。不发送任何 BNB。` : `open a crowd check on contract ${addr} for ${hours} hours. It sends no BNB.` }));
+    box.querySelector(".copy")?.focus({ preventScroll: true });
+  });
 }
 
 // ------------------------------------------------------------ rules page (a charter, contracts as a ledger)
 function rulesPage() {
+  setTimeout(async () => { const el = document.getElementById("csTag"); if (el) el.textContent = (await repDeployed()) ? (zhT() ? "✓ 已上线" : "✓ Live") : (zhT() ? "即将部署" : "Deploying soon"); });
   const a = (x) => (x ? `<a href="${CONFIG.explorer}/address/${x}#code" target="_blank" rel="noopener">${x}</a>` : "—");
   const art = (n, title, body) => `<section class="article rv"><div class="an">第${CN_NUM[n]}条<small>${t("art")(n + 1)}</small></div><div><h2>${title}</h2>${body}</div></section>`;
-  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
+  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore", "声誉合约", CONFIG.crowdScore], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.rules"))}<h1>${t("rulesH1")}</h1><p class="lede" style="margin-top:20px">${t("rulesLede")}</p></div><div class="bigmark" aria-hidden="true">章</div></div>
     <div class="charter">
       ${art(0, t("a1h"), `<p><b>${t("a1h")}.</b> ${t("a1p")}</p>`)}
       ${art(1, t("a2h"), `<p>${t("a2p")}</p><div class="tbl-scroll"><table class="ledger contracts" style="margin-top:12px"><thead><tr><th>${t("thContract")}</th><th>${t("thAddress")}</th><th></th></tr></thead><tbody>
-        ${C.map(([n1, n2, addr]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td><span class="verified">${t("verifiedTag")}</span></td></tr>`).join("")}
+        ${C.map(([n1, n2, addr]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td>${n1 === "CrowdScore" ? `<span class="verified" id="csTag"></span>` : `<span class="verified">${t("verifiedTag")}</span>`}</td></tr>`).join("")}
         </tbody></table></div>`)}
       ${art(2, t("a3h"), `<ul>${t("a3l").map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`)}
       ${art(3, t("a4h"), `<ul>${t("a4l").map((x) => `<li class="never">${esc(x)}</li>`).join("")}</ul>`)}
@@ -1337,7 +1564,7 @@ function rulesPage() {
 }
 
 // ---------------------------------------------------------------- chrome + router
-const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["league", "#/league", "nav.league"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
+const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["league", "#/league", "nav.league"], ["check", "#/check", "nav.check"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
 function chrome(page) {
   document.documentElement.lang = zhT() ? "zh-CN" : "en";
   const other = zhT() ? "en" : "zh";
@@ -1374,6 +1601,7 @@ async function route(keepScroll = false) {
     else if (page === "new-poll") html = newPollPage();
     else if (page === "rules") html = rulesPage();
     else if (page === "league") html = await leaguePage(id === "all" ? "all" : "current");
+    else if (page === "check") html = await checkPage(isAddress(id) ? norm(id) : "");
     else if (page === "agents") html = await agentsPage();
     else html = await home();
   } catch (e) {
@@ -1385,7 +1613,7 @@ async function route(keepScroll = false) {
   if (!keepScroll) scrollTo(0, 0);
   $app.innerHTML = html;
   $app.classList.remove("enter"); void $app.offsetWidth; $app.classList.add("enter");
-  const title = { "new-poll": t("nav.new"), league: t("nav.league"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
+  const title = { "new-poll": t("nav.new"), league: t("nav.league"), check: t("nav.check"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
   document.title = (title ? title + " · " : "") + "Show of Hands · 举手 — " + (zhT() ? "一个 Agent ID，一票" : "One Agent ID, one voice");
   reveal();
 }
