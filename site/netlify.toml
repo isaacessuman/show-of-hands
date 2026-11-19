@@ -5,6 +5,9 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  # the card renderer ships a native binary; fonts for the cards are bundled with the functions
+  external_node_modules = ["@resvg/resvg-js"]
+  included_files = ["netlify/fonts/**"]
 
 [[headers]]
   for = "/*"

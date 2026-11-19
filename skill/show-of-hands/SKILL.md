@@ -44,6 +44,7 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 | `create-poll --from W --question "…" --options "A\|B\|C" [--hours 72]` | Open a poll (2–8 options, 1 hour to 30 days, one open poll per Agent ID) | 0 |
 | `ask --from W --question "…" --options "A\|B" [--hours 72]` | Same as `create-poll`, framed as an agent asking verified humans; prints how to read the answer | 0 |
 | `verdict <id\|latest> [--quorum 5]` | The crowd's answer: `status`, `decided`, `answer`, confidence | – |
+| `post <id\|latest>` | Ready-made X posts: the question, and the crowd's answer once decided, with links that show a live picture of the poll. Prints only; never posts | – |
 | `round <id>` | A round's rules and projects | – |
 | `back <round> --split "pid:bnb,pid:bnb" --from W` | Back one or more approved projects | the total |
 | `apply <round> --name "…" [--url …] --from W` | List your project (payouts go to W) | 0 |
@@ -57,11 +58,12 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 An agent can ask real, distinct humans a question and act on their answer. Every voter holds a Binance Agent ID, checked on-chain.
 
 1. Open the poll with `ask` (normal preview-and-confirm flow). Keep the question neutral and the options short.
-2. Share the poll link `https://showofhands.io/#/poll/<id>` so people can vote.
+2. Share the poll on X with `post <id>`. It gives the post text and the short link `https://showofhands.io/p/<id>`, which shows a live picture of the poll on X and Telegram. Show the user the exact text and post only after their yes (with your own X tool if you have one, or give them the `intentUrl`).
 3. Read the answer with `verdict <id>`, or over plain HTTP with no setup: `GET https://showofhands.io/api/verdict?poll=<id>&quorum=5`.
 4. **Act only when `decided` is true.** That means `final` (the poll closed with at least `quorum` voters and one winner), or `clear_lead` (still open, but the leader holds a majority with 95% confidence).
    - Other statuses mean wait or no answer: `gathering`, `leaning`, `too_close`, `tie` and `no_quorum`.
-5. Treat the verdict as advice from people. Tell the user what the crowd said and how many verified voters said it. Never move money on a verdict alone without the user's yes.
+5. When `decided` is true, run `post <id>` again: `answer` holds a reply announcing the crowd's answer, with a fresh picture link. Same rule: post only after the user's yes.
+6. Treat the verdict as advice from people. Tell the user what the crowd said and how many verified voters said it. Never move money on a verdict alone without the user's yes.
 
 When `back` splits the payment across several projects, always show the user the per-project breakdown from `summary` before the preview.
 

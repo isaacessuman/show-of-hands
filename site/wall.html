@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Live vote wall · Show of Hands</title>
+<meta name="description" content="Every vote on Show of Hands lands as a drop of ink, live from BNB Smart Chain.">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Ma+Shan+Zheng&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Noto+Serif+SC:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="wall.css">
+</head>
+<body>
+<main class="wall" id="wall">
+  <section class="stage" aria-label="Live votes">
+    <canvas class="ink stain" id="stain" aria-hidden="true"></canvas>
+    <canvas class="ink wet" id="wet" aria-hidden="true"></canvas>
+
+    <header class="brand">
+      <span class="seal v" aria-hidden="true"><span>举</span><span>手</span></span>
+      <span class="brand-txt">
+        <b>Show of Hands</b>
+        <small data-i18n="tagline">live from BNB Smart Chain</small>
+        <span class="status" id="status" role="status" aria-live="polite">
+          <i class="live-dot" aria-hidden="true"></i>
+          <span id="statusText" data-i18n="connecting">connecting…</span>
+          <span class="blk" id="blockWrap" hidden><span data-i18n="block">block</span> <span id="block" class="mono">—</span></span>
+        </span>
+      </span>
+    </header>
+
+    <div class="counters" id="counters">
+      <div class="ctr"><b id="cVotes">0</b><span data-i18n="votes">votes</span></div>
+      <div class="ctr"><b id="cIds">0</b><span data-i18n="ids">Agent IDs</span></div>
+      <div class="ctr"><b id="cPolls">0</b><span data-i18n="polls">polls</span></div>
+    </div>
+
+    <div class="demo-stamp" id="demoStamp" hidden>
+      <span data-i18n="demoStamp">DEMO · simulated votes</span>
+    </div>
+
+    <ol class="ticker" id="ticker" aria-live="polite" aria-label="Latest votes"></ol>
+
+    <div class="empty" id="empty" hidden>
+      <p class="empty-big" data-i18n="emptyBig">Waiting for the first hand.</p>
+      <p class="empty-sub" data-i18n="emptySub">Every vote will land here as a drop of ink.</p>
+    </div>
+
+    <a class="back" href="/" data-i18n="back">← showofhands.io</a>
+    <p class="hint" id="hint" data-i18n="hint">F fullscreen · D demo · Esc exit</p>
+  </section>
+
+  <aside class="panel" id="panel" aria-label="Featured poll">
+    <p class="p-label"><span data-i18n="featured">Featured poll</span> <span class="p-id mono" id="pId"></span><span class="p-demo" id="pDemo" hidden data-i18n="demoShort">DEMO</span></p>
+    <h1 class="p-q untrusted" id="pQ">…</h1>
+    <ul class="bars" id="bars"></ul>
+    <p class="p-meta"><span><b id="pVoters">0</b> <span id="pVotersL" data-i18n="verified">verified voters</span></span><span class="sep">·</span><span id="pTime"></span></p>
+    <div class="vote-here">
+      <div class="qr-card"><canvas id="qr" width="200" height="200" aria-label="QR code to vote"></canvas></div>
+      <div class="vote-txt">
+        <p class="vh-label" data-i18n="scan">Scan to vote</p>
+        <p class="vh-link mono" id="shortLink">showofhands.io</p>
+        <p class="vh-note" data-i18n="oneId">One Agent ID, one vote.</p>
+      </div>
+    </div>
+  </aside>
+</main>
+<script type="module" src="wall.js"></script>
+</body>
+</html>

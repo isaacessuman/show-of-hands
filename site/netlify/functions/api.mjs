@@ -2,6 +2,7 @@
 // No keys, no writes, no user data. Reads the Polls contract on BNB Smart Chain and adds a verdict.
 import { CONFIG } from "../../config.js";
 import { verdict, DEFAULT_QUORUM } from "../../lib/verdict.js";
+import { getIndex, league, events } from "../../lib/chainindex.mjs";
 
 const RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
 const SEL = { pollCount: "0x9207891d", getPoll: "0x1a8cbcaa" };
@@ -83,12 +84,26 @@ export default async (req) => {
         polls: polls.map((p) => { const v = verdict(p, { quorum }); return { poll: v.poll, status: v.status, decided: v.decided, open: v.open, verifiedVoters: v.verifiedVoters, endsAt: v.endsAt, question_UNTRUSTED: v.question_UNTRUSTED, leading: v.leading, url: `${url.origin}/#/poll/${p.id}` }; }),
       });
     }
+    if (path === "/api/events") {
+      const since = Number(url.searchParams.get("since")) || 0;
+      const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit")) || 60));
+      const idx = await getIndex();
+      return json(200, { head: idx.head, syncedTo: idx.lastBlock, syncing: idx.syncing, contract: CONFIG.polls, chainId: 56, events: events(idx, { since, limit }) }, 3);
+    }
+    if (path === "/api/league") {
+      const week = url.searchParams.get("week") || "current";
+      if (!/^(current|all|\d{4}-W\d{2})$/.test(week)) return json(400, { error: "week must be 'current', 'all' or like 2026-W48" });
+      const idx = await getIndex({ fresh: 20000 });
+      return json(200, { ...league(idx, { week, quorum }), syncing: idx.syncing, contract: CONFIG.polls, chainId: 56 }, 30);
+    }
     return json(200, {
       name: "Show of Hands verdict API",
       about: "Ask verified humans, read their answer. Every voter is a distinct Binance Agent ID holder, checked on-chain by the Polls contract.",
       endpoints: {
         "GET /api/verdict?poll=<id|latest>&quorum=<n>": "The crowd's answer to one poll, with status, confidence and a plain-English explanation.",
         "GET /api/polls?limit=<1-50>": "The latest polls with their current status.",
+        "GET /api/events?since=<block>&limit=<1-200>": "The latest polls and votes, with each voter's Agent ID name. Powers the live vote wall.",
+        "GET /api/league?week=<current|all|2026-W48>": "The weekly Crowd's Answer league: points per Agent ID and this week's questions.",
       },
       statuses: ["gathering", "leaning", "clear_lead", "too_close", "final", "tie", "no_quorum"],
       act_when: "decided is true (status final, or clear_lead before the poll closes)",
@@ -100,4 +115,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: ["/api", "/api/verdict", "/api/polls"] };
+export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league"] };

@@ -12,7 +12,16 @@ let lang = localGet("soh-lang") || ((navigator.language || "").toLowerCase().sta
 // ------------------------------------------------------------------ text
 const T = {
   en: {
-    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds",
+    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League",
+    leagueH1: "The Crowd’s Answer <em>league.</em>", leagueLede: "New questions every week. Every vote scores a point, and reading the crowd right scores more. One Agent ID is one entry, so the board can’t be farmed.",
+    lgWeek: "This week", lgAll: "All time", lgPlayers: "Players", lgVotes: "Votes", lgQs: "Questions", lgEnds: "Week ends in", lgEver: "Since launch",
+    lgRank: "Rank", lgWho: "Agent ID", lgPts: "Points", lgRead: "Read right", lgWeeks: "Weeks", lgPtsU: (n) => `${n} ${n === 1 ? "pt" : "pts"}`,
+    lgEmpty: "No votes yet this week. Cast the first one and take the top spot.", lgEmptyAll: "No votes yet.",
+    lgRulesH: "How points work", lgRules: ["1 point for every vote you cast.", "2 more points when a poll closes with a clear crowd answer and you voted for it.", "One Agent ID, one entry. Fake wallets can’t join, so nobody can farm the board.", "No prizes and no money. It’s a public record of who shows up and who reads the crowd well.", "Weeks run Monday to Sunday, UTC."],
+    lgQH: "This week’s questions", lgQAll: "All questions", lgQEmpty: "No questions this week yet. Ask the first one.", lgApi: "For agents", lgWall: "Open the live vote wall", lgSyncing: "Still reading older blocks from the chain. Numbers may grow for a minute.",
+    xH: "Post it on X", xP: "The link shows a live picture of this poll on X and Telegram, with the latest count.", xAsk: "Post the question", xVerdict: "Post the crowd’s answer", copyLink: "Copy link",
+    xAskText: (q) => `Agents ask, humans answer. One Agent ID, one vote on BNB Chain:\n\n“${q}”`,
+    xVerdictText: (a, pct, n) => `The crowd has answered: “${a}” (${pct}% of ${n} verified Agent IDs). Read on-chain, not guessed.`,
     skip: "Skip to content", logoSub: "One Agent ID · one voice", menu: "Menu", switchLang: "Switch language",
     toNight: "Switch to Ink Night (dark)", toPaper: "Switch to Paper (light)",
     foot: "Independent community project. Not run by Binance or BNB Chain. No fees, no rewards for taking part, no returns.",
@@ -98,7 +107,7 @@ const T = {
     agentsH1: "Agents ask.<br><em>Humans answer.</em>",
     agentsLede: "AI agents keep hitting questions only people can answer: which design is better, is this project legit, what do users actually want? Show of Hands lets any agent ask verified humans and get back an answer it can read, which bots can't fake.",
     step1h: "Ask", step1p: "An agent opens a poll from its own Agent ID. It costs only the network fee.",
-    step2h: "Humans answer", step2p: "Each human with an Agent ID votes once, checked on-chain by the contract. Bots and wallet farms can't stuff the box.",
+    step2h: "Humans answer", step2p: "The agent shares the short link on X (node scripts/soh.mjs post <id> writes the post). The link shows a live picture of the poll. Each human with an Agent ID votes once, checked on-chain, so bots and wallet farms can't stuff the box.",
     step3h: "Read the verdict", step3p: "Any agent reads the answer with one HTTP call, no key needed. Act only when decided is true.",
     askCmd: `node scripts/soh.mjs ask --from <wallet> \\\n  --question "Is this token a scam?" --options "Yes|No|Not sure"`,
     liveH: "Live: the latest poll's verdict", liveNA: "Not available right now.",
@@ -122,7 +131,16 @@ const T = {
     signoff: "This is an independent community project. Poll and round results are not official judging of anything. Enforced by contract code, not by our promises.",
   },
   zh: {
-    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮",
+    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛",
+    leagueH1: "众人之答<em>周联赛。</em>", leagueLede: "每周都有新问题。每投一票得 1 分，猜中众人的答案再加分。一个 Agent ID 只算一个参赛者，所以没人能刷榜。",
+    lgWeek: "本周", lgAll: "总榜", lgPlayers: "参赛者", lgVotes: "投票", lgQs: "问题", lgEnds: "本周剩余", lgEver: "上线以来",
+    lgRank: "名次", lgWho: "Agent ID", lgPts: "积分", lgRead: "猜中", lgWeeks: "参与周数", lgPtsU: (n) => `${n} 分`,
+    lgEmpty: "本周还没有人投票。投下第一票，拿下榜首。", lgEmptyAll: "还没有投票。",
+    lgRulesH: "积分规则", lgRules: ["每投一票得 1 分。", "投票结束且众人给出明确答案时，如果你投的正是这个答案，再得 2 分。", "一个 Agent ID 只算一个参赛者。假钱包进不来，所以没人能刷榜。", "没有奖品，不涉及任何资金。这只是一份公开记录：谁常来，谁最懂众人。", "每周从周一到周日（UTC）。"],
+    lgQH: "本周的问题", lgQAll: "全部问题", lgQEmpty: "本周还没有问题。来提第一个吧。", lgApi: "给智能体", lgWall: "打开实时投票墙", lgSyncing: "仍在读取较早的区块，数字可能会在一分钟内增加。",
+    xH: "发到 X", xP: "这个链接在 X 和 Telegram 上会显示投票的实时图片和最新票数。", xAsk: "发布这个问题", xVerdict: "发布众人的答案", copyLink: "复制链接",
+    xAskText: (q) => `智能体提问，真人回答。BNB Chain 上一个 Agent ID 一票：\n\n“${q}”`,
+    xVerdictText: (a, pct, n) => `众人已经回答：“${a}”（${n} 个已验证 Agent ID 中的 ${pct}%）。链上可查，不是猜的。`,
     skip: "跳到正文", logoSub: "一个 Agent ID · 一票", menu: "菜单", switchLang: "切换语言",
     toNight: "切换到墨夜（深色）", toPaper: "切换到宣纸（浅色）",
     foot: "独立社区项目，非 Binance 或 BNB Chain 官方运营。无手续费，参与无奖励，无任何回报承诺。",
@@ -199,7 +217,7 @@ const T = {
     agentsH1: "智能体提问，<br><em>真人回答。</em>",
     agentsLede: "AI 智能体常常需要人的判断：哪个设计更好？这个项目可信吗？用户真正想要什么？Show of Hands 让任何智能体向已验证的真人提问，并拿到机器可读、无法被刷票的答案。",
     step1h: "提问", step1p: "智能体用自己的 Agent ID 发起一个投票，只需网络手续费。",
-    step2h: "真人投票", step2p: "每个持有 Agent ID 的真人只能投一次，由合约在链上检查。机器人和批量钱包刷不了票。",
+    step2h: "真人投票", step2p: "智能体把短链接发到 X（node scripts/soh.mjs post <编号> 会写好帖子），链接会显示投票的实时图片。每个持有 Agent ID 的真人只能投一次，由合约在链上检查，机器人和批量钱包刷不了票。",
     step3h: "读取答案", step3p: "任何智能体都能用一个 HTTP 请求读取结果，无需密钥。只有 decided 为 true 时才行动。",
     askCmd: `node scripts/soh.mjs ask --from <钱包> \\\n  --question "这个代币是骗局吗？" --options "是|不是|不确定"`,
     liveH: "实时示例：最新投票的答案", liveNA: "暂时无法读取。",
@@ -355,6 +373,10 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-copy]"); if (!b) return;
   const pre = b.closest(".slip, .code-wrap")?.querySelector("pre"); if (!pre) return;
   copyText(pre.textContent, b, pre, b.dataset.label);
+});
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-copy-text]"); if (!b) return;
+  copyText(b.dataset.copyText, b, null, b.textContent);
 });
 
 /** The pasted instruction. It carries the full calldata so it works even where the assistant cannot open web pages. */
@@ -963,6 +985,10 @@ async function pollPage(id) {
           <div class="quorum" role="img" aria-label="${esc(t("quorumAria")(Math.min(v.verifiedVoters, quorum), quorum))}">${[...Array(quorum).keys()].map((i) => `<i class="${i < v.verifiedVoters ? "on" : ""}"></i>`).join("")}</div>
           <div class="api"><span>${t("apiFor")}:</span><a href="/api/verdict?poll=${id}" target="_blank" rel="noopener"><code>GET /api/verdict?poll=${id}</code></a><a class="link" href="#/agents">${t("nav.agents")} →</a></div>
         </div>
+        <div class="panel xpanel"><h3>${t("xH")}</h3><p>${t("xP")}</p><div class="cta">
+          <a class="btn ink sm" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(t("xAskText")(q.length > 200 ? q.slice(0, 199) + "…" : q))}&url=${encodeURIComponent(location.origin + "/p/" + id)}">${t("xAsk")}</a>
+          ${v.decided && v.leading ? `<a class="btn seal-btn sm" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(t("xVerdictText")(String(v.leading.text_UNTRUSTED).slice(0, 80), Math.round(v.leading.share * 100), v.verifiedVoters))}&url=${encodeURIComponent(location.origin + "/p/" + id + "?r=" + v.status)}">${t("xVerdict")}</a>` : ""}
+          <button class="btn sm" type="button" data-copy-text="${esc(location.origin + "/p/" + id)}">${t("copyLink")}</button></div></div>
         <div class="panel"><h3>${t("shareH")}</h3><p>${t("shareP")}</p><button class="btn ink sm" id="shareBtn" type="button">${t("shareBtn")}</button><div id="shareOut" class="shareout" aria-live="polite"></div></div>
         <div class="panel"><h3>${t("embedH")}</h3><p>${t("embedP")}</p>${codeBlock(snippet, t("copyCode"))}</div>
       </aside>
@@ -978,7 +1004,7 @@ function wireShare(poll, v) {
       const canvas = await drawCard({ poll, v, zh: lang === "zh", host: location.host });
       const blob = await toBlob(canvas), url = URL.createObjectURL(blob);
       const file = new File([blob], `showofhands-poll-${poll.id}.png`, { type: "image/png" });
-      const link = `${location.origin}/#/poll/${poll.id}`;
+      const link = `${location.origin}/p/${poll.id}`;
       const text = t("shareText")(poll.total);
       const x = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(link)}`;
       const canShare = navigator.canShare?.({ files: [file] });
@@ -1220,7 +1246,7 @@ async function agentsPage() {
   let live = null;
   try { const r = await fetch("/api/verdict?poll=latest"); live = r.ok ? await r.json() : null; } catch {}
   const origin = location.origin;
-  const steps = [[t("step1h"), t("step1p"), t("askCmd")], [t("step2h"), t("step2p"), `${origin}/#/poll/<${zhT() ? "编号" : "id"}>`], [t("step3h"), t("step3p"), `curl ${origin}/api/verdict?poll=latest`]];
+  const steps = [[t("step1h"), t("step1p"), t("askCmd")], [t("step2h"), t("step2p"), `${origin}/p/<${zhT() ? "编号" : "id"}>`], [t("step3h"), t("step3p"), `curl ${origin}/api/verdict?poll=latest`]];
   const keys = ["gathering", "leaning", "clear_lead", "too_close", "final", "tie", "no_quorum"];
   setTimeout(() => {
     const list = document.querySelector(".stlist"); if (!list) return;
@@ -1260,6 +1286,38 @@ async function agentsPage() {
     <p class="note red" style="margin-top:48px">${t("agentsWarn")}</p></div>`;
 }
 
+// ------------------------------------------------------------ league page (weekly Crowd's Answer league)
+async function leaguePage(week) {
+  const r = await fetch(`/api/league?week=${week}`);
+  if (!r.ok) throw new Error("league " + r.status);
+  const L = await r.json();
+  const all = week === "all", rows = L.leaders || [], qs = L.questions || [];
+  const votes = rows.reduce((a, x) => a + x.votes, 0);
+  const left = L.weekEnd ? Math.max(0, L.weekEnd - Date.now() / 1000) : 0;
+  const leftTxt = zhT() ? `${Math.floor(left / 86400)} 天 ${Math.floor((left % 86400) / 3600)} 时` : `${Math.floor(left / 86400)}d ${Math.floor((left % 86400) / 3600)}h`;
+  const who = (x) => `<a href="${CONFIG.explorer}/address/${x.voter}" target="_blank" rel="noopener" class="untrusted">${esc(x.handle || short(x.voter))}</a>`;
+  const podium = rows.slice(0, 3).map((x, i) => `<div class="pod p${i + 1} rv"><div class="pm">${seal(CN_NUM[x.rank - 1] || String(x.rank))}</div><div class="pn">${who(x)}</div><div class="pp">${t("lgPtsU")(x.points)}</div><div class="ps">${nv(x.votes)} · ${t("lgRead")} ${x.matches}</div></div>`).join("");
+  const table = rows.length > 3 ? `<div class="tbl-scroll"><table class="ledger lg"><thead><tr><th>${t("lgRank")}</th><th>${t("lgWho")}</th><th>${t("lgPts")}</th><th>${t("lgVotes")}</th><th>${t("lgRead")}</th><th>${t("lgWeeks")}</th></tr></thead><tbody>
+      ${rows.slice(3).map((x) => `<tr><td class="rk">${x.rank}</td><td>${who(x)}</td><td><b>${x.points}</b></td><td>${x.votes}</td><td>${x.matches}</td><td>${x.weeks}</td></tr>`).join("")}</tbody></table></div>` : "";
+  const P = (q) => ({ id: q.poll, open: q.open, total: q.verifiedVoters, endsAt: q.endsAt, question: q.question_UNTRUSTED, options: q.options_UNTRUSTED, tallies: q.tallies });
+  return `<div class="wrap">
+    <div class="doc-head"><div>${crumb(t("nav.league"))}<h1>${t("leagueH1")}</h1><p class="lede" style="margin-top:20px;max-width:56ch">${t("leagueLede")}</p></div><div class="bigmark" aria-hidden="true">榜</div></div>
+    <div class="seg lgseg" role="group" aria-label="${esc(t("nav.league"))}"><button type="button" aria-pressed="${!all}" onclick="location.hash='#/league'">${t("lgWeek")}${all ? "" : ` · ${esc(L.week)}`}</button><button type="button" aria-pressed="${all}" onclick="location.hash='#/league/all'">${t("lgAll")}</button></div>
+    <div class="ledger-strip rv"><div><div class="n">${L.players}</div><div class="l">${t("lgPlayers")}</div></div><div><div class="n">${votes}</div><div class="l">${t("lgVotes")}</div></div><div><div class="n">${qs.length}</div><div class="l">${t("lgQs")}</div></div><div><div class="n" style="font-size:clamp(28px,3.2vw,44px)">${all ? "—" : leftTxt}</div><div class="l">${all ? t("lgEver") : t("lgEnds")}</div></div></div>
+    ${L.syncing ? `<p class="note">${t("lgSyncing")}</p>` : ""}
+    <div class="two" style="margin-top:clamp(40px,6vw,72px)">
+      <div>${rows.length ? `<div class="podium">${podium}</div>${table}` : `<div class="blank"><div class="mk" aria-hidden="true">榜</div><div><h3>${all ? t("lgEmptyAll") : t("lgEmpty")}</h3><a class="btn sm" href="#/">${t("backHome")} <span class="arr">→</span></a></div></div>`}</div>
+      <aside class="stack sticky">
+        <div class="panel"><div class="label">${t("lgRulesH")} <span class="cn">规</span></div><ul class="lgrules">${t("lgRules").map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+        <div class="panel"><a class="btn ink sm" href="/wall.html${zhT() ? "?lang=zh" : ""}">${t("lgWall")} <span class="arr">→</span></a>
+          <p class="pmeta2" style="margin:16px 0 0"><span>${t("lgApi")}:</span><a href="/api/league?week=${all ? "all" : "current"}" target="_blank" rel="noopener"><code>GET /api/league</code></a></p></div>
+      </aside>
+    </div>
+    <div class="sec-head" style="margin-top:clamp(64px,8vw,110px)"><div><div class="label">${all ? t("lgQAll") : t("lgQH")} <span class="cn">问</span></div></div></div>
+    ${qs.length ? `<div class="plist rv">${qs.map((q) => pollCard(P(q), false)).join("")}</div>` : `<div class="blank"><div class="mk" aria-hidden="true">问</div><div><h3>${t("lgQEmpty")}</h3><a class="btn sm" href="#/new-poll">${t("nav.new")} <span class="arr">→</span></a></div></div>`}
+  </div>`;
+}
+
 // ------------------------------------------------------------ rules page (a charter, contracts as a ledger)
 function rulesPage() {
   const a = (x) => (x ? `<a href="${CONFIG.explorer}/address/${x}#code" target="_blank" rel="noopener">${x}</a>` : "—");
@@ -1279,7 +1337,7 @@ function rulesPage() {
 }
 
 // ---------------------------------------------------------------- chrome + router
-const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
+const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["league", "#/league", "nav.league"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
 function chrome(page) {
   document.documentElement.lang = zhT() ? "zh-CN" : "en";
   const other = zhT() ? "en" : "zh";
@@ -1315,6 +1373,7 @@ async function route(keepScroll = false) {
     else if (page === "round" && valid(id)) html = await roundPage(id);
     else if (page === "new-poll") html = newPollPage();
     else if (page === "rules") html = rulesPage();
+    else if (page === "league") html = await leaguePage(id === "all" ? "all" : "current");
     else if (page === "agents") html = await agentsPage();
     else html = await home();
   } catch (e) {
@@ -1326,7 +1385,7 @@ async function route(keepScroll = false) {
   if (!keepScroll) scrollTo(0, 0);
   $app.innerHTML = html;
   $app.classList.remove("enter"); void $app.offsetWidth; $app.classList.add("enter");
-  const title = { "new-poll": t("nav.new"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
+  const title = { "new-poll": t("nav.new"), league: t("nav.league"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
   document.title = (title ? title + " · " : "") + "Show of Hands · 举手 — " + (zhT() ? "一个 Agent ID，一票" : "One Agent ID, one voice");
   reveal();
 }
