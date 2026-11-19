@@ -4,26 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Show of Hands poll</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="robots" content="noindex">
 <style>
-:root{--bg:#0b0a10;--card:#12111a;--ink:#f4ecdb;--muted:#a39b8a;--line:rgba(255,255,255,.1);--gold:#f3b13c;--gold-2:#ffd27a;--ember:#ff8a2a;--good:#7fe0a6;--track:rgba(255,255,255,.07)}
-:root[data-theme="light"]{--bg:#fbf7ee;--card:#ffffff;--ink:#1b1710;--muted:#6f6656;--line:rgba(0,0,0,.1);--gold:#c98a12;--gold-2:#a8700a;--ember:#e0731c;--good:#1f8a4c;--track:rgba(0,0,0,.06)}
+/* Ink & Seal widget. Paper by default, Ink Night with ?theme=dark. System fonts only (the CSP allows nothing else). */
+:root{--bg:#FAF6EC;--ink:#191613;--ink-2:#3B352F;--wash:#756C62;--track:#E2D9C6;--line:rgba(25,22,19,.14);--seal:#C4351E;--on-seal:#FBF3E6;color-scheme:light}
+:root[data-theme="dark"]{--bg:#191714;--ink:#EEE6D6;--ink-2:#CFC6B5;--wash:#9A9083;--track:#2E2A25;--line:rgba(238,230,214,.14);--seal:#D8452B;--on-seal:#FFF4E8;color-scheme:dark}
 *{box-sizing:border-box}html,body{margin:0;background:transparent}
-body{font:14px/1.45 Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink)}
-.w{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;overflow:hidden;position:relative}
-.w::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.8}
-.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
-.brand{font:italic 15px Georgia,serif;color:var(--ink);text-decoration:none}.brand b{font-style:normal;font-weight:400;color:var(--gold-2)}
-.chip{font:600 10.5px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
-.chip.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
-h1{font:400 20px/1.25 Georgia,"Noto Serif SC",serif;margin:10px 0 12px;overflow-wrap:anywhere}
-.o{margin:9px 0}.r{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}.r span:first-child{overflow-wrap:anywhere}.r span:last-child{color:var(--muted);white-space:nowrap}
-.b{height:9px;background:var(--track);border-radius:99px;overflow:hidden;margin-top:4px}.b i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--ember),var(--gold-2));transition:width .9s cubic-bezier(.2,.8,.2,1)}
-.o.win .r span:first-child{color:var(--gold-2);font-weight:600}
-.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
-.cta{display:inline-block;padding:8px 14px;border-radius:99px;background:linear-gradient(180deg,var(--gold-2),var(--gold));color:#1a1003;font-weight:600;text-decoration:none;white-space:nowrap}
-.v{font-size:12.5px;color:var(--muted);margin-top:8px}.v b{color:var(--ink)}
-.err{color:var(--muted);text-align:center;padding:18px}
+body{font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.w{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:16px 18px;overflow:hidden;position:relative;box-shadow:0 10px 30px -22px rgba(0,0,0,.45)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--wash)}
+.brand{display:flex;align-items:center;gap:9px;color:var(--ink);text-decoration:none;font:500 15px Georgia,"Songti SC","Noto Serif SC",serif}
+.brand small{display:block;font:600 9.5px/1 -apple-system,system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--wash);margin-top:3px}
+.seal{display:inline-grid;grid-template-rows:1fr 1fr;place-items:center;width:22px;height:25px;padding:2px 0;background:var(--seal);color:var(--on-seal);font:900 9.5px/1 "Songti SC","Noto Serif SC",serif;border-radius:2px;flex:none}
+.chip{font:700 10px/1 -apple-system,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:5px 8px;border:1px solid currentColor;border-radius:2px;white-space:nowrap;color:var(--wash)}
+.chip.ok{color:var(--seal)}
+h1{font:400 20px/1.25 Georgia,"Songti SC","Noto Serif SC",serif;letter-spacing:-.01em;margin:12px 0 12px;overflow-wrap:anywhere}
+.o{margin:9px 0}.r{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}.r span:first-child{overflow-wrap:anywhere}.r span:last-child{color:var(--wash);white-space:nowrap;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+.b{height:12px;position:relative;margin-top:3px}
+.b::before{content:"";position:absolute;inset:2px 0;background:var(--track);-webkit-mask:var(--brush2,none) center/100% 100% no-repeat;mask:var(--brush2,none) center/100% 100% no-repeat;border-radius:6px}
+.b i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--wash);-webkit-mask:var(--brush,none) left center/100% 100% no-repeat;mask:var(--brush,none) left center/100% 100% no-repeat;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.o.win .r span:first-child{font-weight:600}.o.win .b i{background:var(--ink)}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--wash)}
+.cta{display:inline-block;padding:9px 14px;border-radius:2px;background:var(--seal);color:var(--on-seal);font-weight:600;text-decoration:none;white-space:nowrap}
+.cta:hover{filter:brightness(1.06)}
+a:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+.v{font-size:12.5px;color:var(--wash);margin-top:8px}.v b{color:var(--ink);font:400 14px Georgia,"Songti SC",serif}
+.err{color:var(--wash);text-align:center;padding:18px}
+@media (prefers-reduced-motion:reduce){.b i{transition:none}}
 </style>
 </head>
 <body>
@@ -32,7 +42,7 @@ h1{font:400 20px/1.25 Georgia,"Noto Serif SC",serif;margin:10px 0 12px;overflow-
 const q = new URLSearchParams(location.search);
 const poll = /^\d{1,9}$/.test(q.get("poll") || "") ? q.get("poll") : "latest";
 const zh = (q.get("lang") || navigator.language || "").toLowerCase().startsWith("zh");
-if (q.get("theme") === "light") document.documentElement.dataset.theme = "light";
+if (q.get("theme") === "dark") document.documentElement.dataset.theme = "dark";
 const L = zh
   ? { voters: (n) => `${n} 个已验证的 Agent ID`, open: "进行中", closed: "已结束", vote: "用 Agent ID 投票 →", see: "查看结果 →", err: "暂时无法读取投票。",
       st: { gathering: "收集中", leaning: "领先中", clear_lead: "明显领先", too_close: "难分胜负", final: "最终结果", tie: "平局", no_quorum: "人数不足" }, crowd: "众人的回答" }
@@ -43,6 +53,20 @@ const w = document.getElementById("w");
 const tell = () => parent.postMessage({ soh: "height", h: Math.ceil(document.documentElement.scrollHeight) }, "*");
 new ResizeObserver(tell).observe(document.body);
 
+// Brush-stroke masks for the bars, drawn locally (data: images are allowed by the CSP).
+function brush(seed) {
+  let a = seed; const r = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+  const c = document.createElement("canvas"); c.width = 600; c.height = 40; const x = c.getContext("2d"), wd = 600, h = 40;
+  x.fillStyle = "#000"; x.beginPath(); const top = [], bot = [];
+  for (let i = 0; i <= 40; i++) { const px = (i / 40) * wd * 0.94 + wd * 0.02, tp = i < 3 ? i / 3 : i > 32 ? Math.max(0.2, 1 - (i - 32) / 10) : 1; top.push([px, h / 2 - h * 0.36 * tp - (r() - 0.5) * 3]); bot.push([px, h / 2 + h * 0.34 * tp + (r() - 0.5) * 3]); }
+  x.moveTo(top[0][0], h / 2); top.forEach((p) => x.lineTo(p[0], p[1])); bot.reverse().forEach((p) => x.lineTo(p[0], p[1])); x.closePath(); x.fill();
+  for (let b = 0; b < 40; b++) { const y = h * (0.15 + 0.7 * r()), end = wd * (0.85 + 0.15 * r()); x.globalAlpha = 0.5 + r() * 0.5; for (let px = wd * 0.02; px < end; px += 4) { if (px > wd * 0.7 && r() < (px / wd - 0.7) * 2.4) continue; x.fillRect(px, y, 5, 1 + r() * 2); } }
+  x.globalCompositeOperation = "destination-out";
+  for (let g = 0; g < 16; g++) { x.globalAlpha = 0.6; x.fillRect(wd * (0.3 + 0.6 * r()), h * (0.2 + 0.6 * r()), wd * (0.05 + r() * 0.2), 1); }
+  return c.toDataURL();
+}
+try { document.documentElement.style.setProperty("--brush", `url(${brush(11)})`); document.documentElement.style.setProperty("--brush2", `url(${brush(29)})`); } catch {}
+
 async function load() {
   try {
     const r = await fetch(`/api/verdict?poll=${poll}`, { cache: "no-store" });
@@ -52,7 +76,9 @@ async function load() {
     const frag = document.createDocumentFragment();
     const top = el("div", "top");
     const brand = el("a", "brand"); brand.href = location.origin; brand.target = "_blank"; brand.rel = "noopener";
-    brand.append("Show of ", el("b", null, "Hands"), " · 举手");
+    const seal = el("span", "seal"); seal.setAttribute("aria-hidden", "true"); seal.append(el("span", null, "举"), el("span", null, "手"));
+    const name = el("span", null, "Show of Hands"); name.append(el("small", null, "举手 · BNB Chain"));
+    brand.append(seal, name);
     top.append(brand, el("span", "chip" + (v.open ? " ok" : ""), v.open ? L.open : L.closed));
     frag.append(top, el("h1", null, v.question_UNTRUSTED));
     const win = v.leading?.index;
@@ -69,7 +95,7 @@ async function load() {
     const a = el("a", "cta", v.open ? L.vote : L.see); a.href = link; a.target = "_blank"; a.rel = "noopener";
     foot.append(a); frag.append(foot);
     w.replaceChildren(frag);
-    setTimeout(() => bars.forEach(([i, s]) => (i.style.width = (s > 0 ? Math.max(2, s * 100) : 0) + "%")), 60);
+    setTimeout(() => bars.forEach(([i, s]) => (i.style.width = (s > 0 ? Math.max(3, s * 100) : 0) + "%")), 60);
   } catch (e) {
     w.replaceChildren(el("div", "err", L.err));
   }

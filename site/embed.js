@@ -1,6 +1,6 @@
 /* Show of Hands embed. Usage:
-   <script src="https://showofhands.io/embed.js" data-poll="0" data-theme="dark" async></script>
-   Options: data-poll (number or "latest"), data-theme ("dark" | "light"), data-lang ("en" | "zh"). */
+   <script src="https://showofhands.io/embed.js" data-poll="0" data-theme="light" async></script>
+   Options: data-poll (number or "latest"), data-theme ("light", the default paper look, or "dark" for Ink Night), data-lang ("en" | "zh"). */
 (function () {
   var me = document.currentScript;
   if (!me) return;
