@@ -562,3 +562,13 @@ table.lg small.best{color:var(--wash);font-size:12px}
 .repstep h3{font-size:19px;margin:0 0 8px}
 .repstep .ckrow .inp{max-width:200px}
 @media (max-width:600px){.repstep .ckrow .inp{max-width:none}}
+
+/* ---------- predictions ---------- */
+.pcard.big.pdcard .q{max-width:none;font:400 clamp(20px,2vw,25px)/1.25 var(--f-display);margin:10px 0 14px}
+.pdact{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.pdres{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;border:1px solid var(--rule);border-left:4px solid var(--wash)}
+.pdres.up{border-left-color:var(--ink)}.pdres.down{border-left-color:var(--seal)}
+.pdverdict{font:600 15px var(--f-sans,inherit);letter-spacing:.02em}
+.pdres.down .pdverdict{color:var(--seal)}
+.pdout:empty{display:none}
+#pdForm .preview-q{font:400 18px/1.35 var(--f-display);margin:12px 0 4px;color:var(--ink-2)}

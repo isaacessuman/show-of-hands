@@ -13,7 +13,7 @@ let lang = localGet("soh-lang") || ((navigator.language || "").toLowerCase().sta
 // ------------------------------------------------------------------ text
 const T = {
   en: {
-    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League", "nav.check": "Crowd check",
+    "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League", "nav.predict": "Predict", "nav.check": "Crowd check",
     qdK: "Question of the Day", qdNone: "Today's question is on its way. Meanwhile, every vote on any poll keeps your streak alive.", qdVote: "Vote today", qdSee: "See the result", qdLeft: (h, m) => `${h}h ${m}m left today`,
     qdStreak: "Voting on any day keeps your streak alive. Miss a whole day and it starts again.", qdTop: "Longest streaks", qdDays: (n) => `${n} ${n === 1 ? "day" : "days"}`, qdNoStreak: "No streaks yet. Vote today to start one.",
     lgStreak: "Streak", lgBest: "Best",
@@ -29,8 +29,23 @@ const T = {
     lgWeek: "This week", lgAll: "All time", lgPlayers: "Players", lgVotes: "Votes", lgQs: "Questions", lgEnds: "Week ends in", lgEver: "Since launch",
     lgRank: "Rank", lgWho: "Agent ID", lgPts: "Points", lgRead: "Read right", lgWeeks: "Weeks", lgPtsU: (n) => `${n} ${n === 1 ? "pt" : "pts"}`,
     lgEmpty: "No votes yet this week. Cast the first one and take the top spot.", lgEmptyAll: "No votes yet.",
-    lgRulesH: "How points work", lgRules: ["1 point for every vote you cast.", "2 more points when a poll closes with a clear crowd answer and you voted for it.", "One Agent ID, one entry. Fake wallets can’t join, so nobody can farm the board.", "No prizes and no money. It’s a public record of who shows up and who reads the crowd well.", "Weeks run Monday to Sunday, UTC."],
+    lgRulesH: "How points work", lgRules: ["1 point for every vote you cast.", "2 more points when a poll closes with a clear crowd answer and you voted for it.", "Price predictions: 1 point for each answer, 3 more when the Chainlink price proves you right.", "One Agent ID, one entry. Fake wallets can’t join, so nobody can farm the board.", "No prizes and no money. It’s a public record of who shows up and who reads the crowd well.", "Weeks run Monday to Sunday, UTC."],
     lgQH: "This week’s questions", lgQAll: "All questions", lgQEmpty: "No questions this week yet. Ask the first one.", lgApi: "For agents", lgWall: "Open the live vote wall", lgSyncing: "Still reading older blocks from the chain. Numbers may grow for a minute.",
+    pdH1: "Will the price be above it? <em>The chain answers.</em>", pdLede: "Price questions with no judge. Every Agent ID gets one vote, voting closes an hour before the check time, and the first Chainlink price after that time settles it on-chain. No money involved and not financial advice: it’s a record of who reads the market well.",
+    pdNow: "Live Chainlink price", pdRecord: (r, n) => n ? `The crowd was right ${r} of ${n} times` : "No question has been settled yet",
+    pdQ: (a, s, when) => `Will ${a}/USD be above ${s} at ${when}?`, pdYes: "Yes, above", pdNo: "No",
+    pdSt: { voting: "Voting", waiting: "Waiting for check time", ready_to_settle: "Ready to settle", settled: "Settled" },
+    pdVoteEnds: "Voting closes", pdVoteEnded: "Voting closed", pdCheck: "Checked at", pdAt: "Price at check time", pdAbove: "Above ✓", pdNotAbove: "Not above ✗",
+    pdCrowd: (c) => ({ above: "The crowd said yes", not_above: "The crowd said no", split: "The crowd was split" })[c] || "Nobody voted",
+    pdRight: ", and was right", pdWrong: ", and was wrong",
+    pdSettleBtn: "Make settle instruction", pdSettleNote: "Anyone can settle. The contract only accepts the first Chainlink price after the check time, so nobody can choose the answer.",
+    pdNoRound: "The feed has no price after the check time yet. Try again in a minute.",
+    pdNewH: "Ask a price question", pdAsset: "Asset", pdStrike: "Above this price (USD)", pdWhen: "Check the price in", pdMake: "Make question instruction",
+    pdTimes: (v, c) => `Voting closes ${v}. The price is checked ${c}.`, pdBadStrike: "Enter a price above 0.",
+    pdEmpty: "No price questions yet. Ask the first one.", pdSoon: "Predictions go live on BNB Chain shortly. The rules are final; questions unlock when the contract is deployed.",
+    pdVoteWhat: (q, a) => `vote ${a ? "YES (above)" : "NO"} on the price question "${q}". It sends no BNB.`,
+    pdMakeWhat: (q) => `ask the price question "${q}". It sends no BNB.`, pdSettleWhat: (id) => `settle price question #${id} with the Chainlink price. It sends no BNB.`,
+    pdScore: "Points: 1 for each answer, 3 more when the price proves you right. Accuracy can be written to ERC-8004 under “prediction-accuracy”.",
     rpK: "Take your record with you", rpH: "Turn your League record into ERC-8004 reputation",
     rpP: "CrowdScore reads your votes straight from the Polls contract and writes one number into the official ERC-8004 Reputation Registry: how often you voted for the crowd’s final answer. Any app or agent that reads ERC-8004 can see it. Nobody can edit it, including us.",
     rpHow: ["A poll counts once it has closed with at least 5 voters and one clear top answer.", "Polls are counted in order, from where your last score ended. You can’t skip the ones you got wrong.", "Linking needs an ERC-8004 agent record that this same wallet owns. Anyone can send the score update afterwards."],
@@ -158,7 +173,7 @@ const T = {
     signoff: "This is an independent community project. Poll and round results are not official judging of anything. Enforced by contract code, not by our promises.",
   },
   zh: {
-    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛", "nav.check": "众人鉴定",
+    "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛", "nav.predict": "预测", "nav.check": "众人鉴定",
     qdK: "每日一问", qdNone: "今天的问题马上就来。在此之前，任何一次投票都能保持你的连续记录。", qdVote: "今天投票", qdSee: "查看结果", qdLeft: (h, m) => `今天还剩 ${h} 小时 ${m} 分`,
     qdStreak: "每天投一次票就能保持连续记录，整整一天不投就会重新开始。", qdTop: "最长连续投票", qdDays: (n) => `${n} 天`, qdNoStreak: "还没有连续记录。今天投一票就开始。",
     lgStreak: "连续", lgBest: "最长",
@@ -174,8 +189,23 @@ const T = {
     lgWeek: "本周", lgAll: "总榜", lgPlayers: "参赛者", lgVotes: "投票", lgQs: "问题", lgEnds: "本周剩余", lgEver: "上线以来",
     lgRank: "名次", lgWho: "Agent ID", lgPts: "积分", lgRead: "猜中", lgWeeks: "参与周数", lgPtsU: (n) => `${n} 分`,
     lgEmpty: "本周还没有人投票。投下第一票，拿下榜首。", lgEmptyAll: "还没有投票。",
-    lgRulesH: "积分规则", lgRules: ["每投一票得 1 分。", "投票结束且众人给出明确答案时，如果你投的正是这个答案，再得 2 分。", "一个 Agent ID 只算一个参赛者。假钱包进不来，所以没人能刷榜。", "没有奖品，不涉及任何资金。这只是一份公开记录：谁常来，谁最懂众人。", "每周从周一到周日（UTC）。"],
+    lgRulesH: "积分规则", lgRules: ["每投一票得 1 分。", "投票结束且众人给出明确答案时，如果你投的正是这个答案，再得 2 分。", "价格预测：每回答一次得 1 分，Chainlink 价格证明你对了再得 3 分。", "一个 Agent ID 只算一个参赛者。假钱包进不来，所以没人能刷榜。", "没有奖品，不涉及任何资金。这只是一份公开记录：谁常来，谁最懂众人。", "每周从周一到周日（UTC）。"],
     lgQH: "本周的问题", lgQAll: "全部问题", lgQEmpty: "本周还没有问题。来提第一个吧。", lgApi: "给智能体", lgWall: "打开实时投票墙", lgSyncing: "仍在读取较早的区块，数字可能会在一分钟内增加。",
+    pdH1: "价格会高于它吗？<em>链上自己回答。</em>", pdLede: "没有裁判的价格问题。每个 Agent ID 一票，检查时间前一小时停止投票，检查时间之后的第一个 Chainlink 价格在链上给出答案。不涉及资金，也不是投资建议：这只是一份谁更懂市场的记录。",
+    pdNow: "Chainlink 实时价格", pdRecord: (r, n) => n ? `众人答对了 ${n} 次中的 ${r} 次` : "还没有已结算的问题",
+    pdQ: (a, s, when) => `${a}/USD 在 ${when} 会高于 ${s} 吗？`, pdYes: "会，高于", pdNo: "不会",
+    pdSt: { voting: "投票中", waiting: "等待检查时间", ready_to_settle: "可以结算", settled: "已结算" },
+    pdVoteEnds: "投票截止", pdVoteEnded: "投票已截止", pdCheck: "检查时间", pdAt: "检查时的价格", pdAbove: "高于 ✓", pdNotAbove: "未高于 ✗",
+    pdCrowd: (c) => ({ above: "众人说会", not_above: "众人说不会", split: "众人意见各半" })[c] || "无人投票",
+    pdRight: "，答对了", pdWrong: "，答错了",
+    pdSettleBtn: "生成结算指令", pdSettleNote: "任何人都可以结算。合约只接受检查时间之后的第一个 Chainlink 价格，所以没人能挑选答案。",
+    pdNoRound: "价格源在检查时间之后还没有新价格，请稍后再试。",
+    pdNewH: "提一个价格问题", pdAsset: "资产", pdStrike: "高于这个价格（美元）", pdWhen: "多久后检查价格", pdMake: "生成提问指令",
+    pdTimes: (v, c) => `投票在 ${v} 截止，价格在 ${c} 检查。`, pdBadStrike: "请输入大于 0 的价格。",
+    pdEmpty: "还没有价格问题。来提第一个吧。", pdSoon: "预测功能即将在 BNB Chain 上线。规则已定；合约部署后即可提问。",
+    pdVoteWhat: (q, a) => `对价格问题“${q}”投${a ? "“会（高于）”" : "“不会”"}。不发送任何 BNB。`,
+    pdMakeWhat: (q) => `提出价格问题“${q}”。不发送任何 BNB。`, pdSettleWhat: (id) => `用 Chainlink 价格结算第 ${id} 号价格问题。不发送任何 BNB。`,
+    pdScore: "积分：每回答一次得 1 分，价格证明你对了再得 3 分。准确率可写入 ERC-8004（标签 “prediction-accuracy”）。",
     rpK: "把你的记录带走", rpH: "把排行榜记录变成 ERC-8004 声誉",
     rpP: "CrowdScore 直接从投票合约读取你的投票，并向官方 ERC-8004 声誉注册表写入一个数字：你有多少次投中了众人的最终答案。任何读取 ERC-8004 的应用或智能体都能看到。没人能修改，包括我们。",
     rpHow: ["投票结束、至少 5 人参与、且有唯一领先答案时，才计入。", "按顺序计算，从上一次计分结束的地方开始。投错的问题不能跳过。", "绑定需要一个由同一钱包持有的 ERC-8004 智能体记录。之后任何人都可以提交分数更新。"],
@@ -1476,6 +1506,115 @@ async function loadToday() {
   growBars(box);
 }
 
+// ------------------------------------------------------------ Predictions: price questions settled by Chainlink on-chain
+const PD_ASSETS = ["BNB", "BTC", "ETH"];
+const usd8 = (raw) => { const n = Number(BigInt(raw)) / 1e8; return "$" + n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
+let pdLive = null, pdData = null;
+async function pdDeployed() {
+  if (pdLive === null) { try { const c = await client.getCode({ address: CONFIG.predictions }); pdLive = !!c && c !== "0x"; } catch { pdLive = false; } }
+  return pdLive;
+}
+const pdWhen = (sec) => new Date(sec * 1000).toLocaleString(lang === "zh" ? "zh-CN" : "en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
+const pdQ = (p) => t("pdQ")(p.asset, p.strikeUsd, pdWhen(p.checkAt));
+function pdCard(p) {
+  const st = `<span class="pill ${p.status === "voting" ? "open" : "closed"}">${esc(t("pdSt")[p.status])}</span>`;
+  const bars = barsHTML([t("pdYes"), t("pdNo")], [p.yes, p.no]);
+  let foot = "";
+  if (p.status === "voting") foot = `<div class="pdact"><button class="btn seal-btn sm" type="button" data-pdvote="${p.id}" data-above="1">${t("pdYes")}</button><button class="btn sm" type="button" data-pdvote="${p.id}" data-above="0">${t("pdNo")}</button></div>`;
+  else if (p.status === "ready_to_settle") foot = `<div class="pdact"><button class="btn ink sm" type="button" data-pdsettle="${p.id}">${t("pdSettleBtn")} <span class="arr">→</span></button></div><p class="note">${t("pdSettleNote")}</p>`;
+  else if (p.status === "settled") {
+    const s = p.settled, verdict = p.crowd ? `${t("pdCrowd")(p.crowd)}${p.crowdWasRight === null ? "" : p.crowdWasRight ? t("pdRight") : t("pdWrong")}` : t("pdCrowd")(null);
+    foot = `<div class="pdres ${s.above ? "up" : "down"}"><span>${t("pdAt")}: <b>${esc(s.priceUsd)}</b></span><span class="pdverdict">${s.above ? t("pdAbove") : t("pdNotAbove")}</span></div><p class="note">${esc(verdict)} · <a href="${CONFIG.explorer}/tx/${esc(s.tx)}" target="_blank" rel="noopener">tx ↗</a></p>`;
+  }
+  return `<article class="pcard big pdcard rv"><div class="pmeta">${st}<span>${nv(p.verifiedVoters)}</span><span>#${p.id}</span></div>
+    <h3 class="q">${esc(pdQ(p))}</h3>${bars}
+    <p class="pmeta2"><span>${t(p.status === "voting" ? "pdVoteEnds" : "pdVoteEnded")}: ${esc(pdWhen(p.votingEndsAt))}</span></p>${foot}<div class="pdout" id="pdout-${p.id}" aria-live="polite"></div></article>`;
+}
+async function predictPage() {
+  let d = null;
+  try { const r = await fetch("/api/predictions"); d = r.ok ? await r.json() : null; } catch {}
+  pdData = d;
+  const live = await pdDeployed();
+  setTimeout(() => wirePredict(live));
+  const prices = d?.prices || {}, list = d?.predictions || [], rec = d?.record || { settled: 0, crowdRight: 0 };
+  const tiles = PD_ASSETS.map((a) => `<div><div class="n">${prices[a] ? esc(prices[a].usd) : "—"}</div><div class="l">${a}/USD</div></div>`).join("");
+  return `<div class="wrap">
+    <div class="doc-head"><div>${crumb(t("nav.predict"))}<h1>${t("pdH1")}</h1><p class="lede" style="margin-top:20px;max-width:60ch">${t("pdLede")}</p></div><div class="bigmark" aria-hidden="true">卜</div></div>
+    <div class="label">${t("pdNow")} <span class="cn">价</span></div>
+    <div class="ledger-strip rv">${tiles}<div><div class="n" style="font-size:clamp(22px,2.4vw,32px)">${rec.crowdRight}/${rec.settled}</div><div class="l">${esc(t("pdRecord")(rec.crowdRight, rec.settled))}</div></div></div>
+    ${live ? "" : `<p class="note" style="margin-top:20px">${t("pdSoon")}</p>`}
+    <div class="two" style="margin-top:clamp(40px,6vw,72px)">
+      <div>${list.length ? `<div class="plist pdlist">${list.map(pdCard).join("")}</div>` : `<div class="blank"><div class="mk" aria-hidden="true">卜</div><div><h3>${t("pdEmpty")}</h3></div></div>`}</div>
+      <aside class="stack sticky"><div class="panel"><h3 style="margin-top:0">${t("pdNewH")}</h3>
+        <form id="pdForm" novalidate>
+          <div class="field"><span class="flabel">${t("pdAsset")}</span><div class="presets" role="group" aria-label="${esc(t("pdAsset"))}">${PD_ASSETS.map((a, i) => `<button type="button" data-asset="${i}" aria-pressed="${i === 0}">${a}</button>`).join("")}</div></div>
+          <div class="field"><label class="flabel" for="pdStrike">${t("pdStrike")}</label><input class="inp sm" id="pdStrike" inputmode="decimal" autocomplete="off"></div>
+          <div class="field"><span class="flabel">${t("pdWhen")}</span><div class="presets" role="group" aria-label="${esc(t("pdWhen"))}">${[[24, "24h"], [72, "3d"], [168, t("d7")]].map(([h, l]) => `<button type="button" data-h="${h}" aria-pressed="${h === 24}">${l}</button>`).join("")}</div></div>
+          <p class="preview-q" id="pdPrev"></p><p class="note" id="pdTimes"></p>
+          <button class="btn seal-btn" type="submit" ${live ? "" : "disabled"}>${t("pdMake")} <span class="arr">→</span></button><div class="err" id="pdErr" role="alert"></div><div id="pdInstr" aria-live="polite"></div>
+        </form></div>
+        <div class="panel"><p class="note" style="margin:0">${t("pdScore")}</p>
+          <p class="pmeta2" style="margin:14px 0 0"><span>${t("lgApi")}:</span><a href="/api/predictions" target="_blank" rel="noopener"><code>GET /api/predictions</code></a></p></div>
+      </aside>
+    </div></div>`;
+}
+function pdTimesFor(hours) {
+  const nowS = Math.floor(Date.now() / 1000), checkAt = Math.ceil((nowS + hours * 3600) / 3600) * 3600;
+  const votingEndsAt = Math.max(nowS + 3600 + 300, nowS + Math.floor((checkAt - nowS) / 2));
+  return { checkAt, votingEndsAt };
+}
+function wirePredict(live) {
+  growBars(document.querySelector(".pdlist"));
+  const f = document.getElementById("pdForm"); if (!f) return;
+  let asset = 0, hours = 24;
+  const prices = pdData?.prices || {};
+  const strikeEl = document.getElementById("pdStrike");
+  const suggest = () => { const p = prices[PD_ASSETS[asset]]; if (!p) return; const n = Number(BigInt(p.raw)) / 1e8, step = n > 10000 ? 1000 : n > 1000 ? 50 : n > 100 ? 10 : 1; strikeEl.value = String(Math.round(n / step) * step); };
+  const strikeRaw = () => { const v = Number(strikeEl.value.replace(/[$,\s]/g, "")); return v > 0 && v < 1e12 ? BigInt(Math.round(v * 1e8)) : 0n; };
+  const show = () => {
+    const { checkAt, votingEndsAt } = pdTimesFor(hours), s = strikeRaw();
+    document.getElementById("pdPrev").textContent = s ? t("pdQ")(PD_ASSETS[asset], usd8(s), pdWhen(checkAt)) : "";
+    document.getElementById("pdTimes").textContent = t("pdTimes")(pdWhen(votingEndsAt), pdWhen(checkAt));
+  };
+  suggest(); show();
+  strikeEl.addEventListener("input", show);
+  f.querySelectorAll(".presets").forEach((g) => g.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    if (b.dataset.asset !== undefined) { asset = +b.dataset.asset; suggest(); } else hours = +b.dataset.h;
+    show();
+  }));
+  f.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const s = strikeRaw(), err = document.getElementById("pdErr"); err.textContent = "";
+    if (!s) { err.textContent = t("pdBadStrike"); return; }
+    const { checkAt, votingEndsAt } = pdTimesFor(hours), q = t("pdQ")(PD_ASSETS[asset], usd8(s), pdWhen(checkAt));
+    const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "create", args: [asset, s, BigInt(votingEndsAt), BigInt(checkAt)] });
+    const box = document.getElementById("pdInstr");
+    box.innerHTML = slip(instruction({ to: CONFIG.predictions, data, gas: CONFIG.gas.predCreate, what: t("pdMakeWhat")(q) }));
+    box.querySelector(".copy")?.focus({ preventScroll: true });
+  });
+  if (!live) return;
+  const byId = (id) => (pdData?.predictions || []).find((p) => p.id === id);
+  document.querySelector(".pdlist")?.addEventListener("click", async (e) => {
+    const v = e.target.closest("[data-pdvote]"), st = e.target.closest("[data-pdsettle]");
+    if (v) {
+      const id = +v.dataset.pdvote, above = v.dataset.above === "1", p = byId(id);
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "vote", args: [BigInt(id), above] });
+      document.getElementById(`pdout-${id}`).innerHTML = slip(instruction({ to: CONFIG.predictions, data, gas: CONFIG.gas.predVote, what: t("pdVoteWhat")(pdQ(p), above) }));
+    } else if (st) {
+      const id = +st.dataset.pdsettle, p = byId(id), box = document.getElementById(`pdout-${id}`);
+      box.innerHTML = `<p class="note">…</p>`;
+      try {
+        const round = await read(CONFIG.predictions, "Predictions", "firstRoundAfter", [p.assetIndex, BigInt(p.checkAt)]);
+        if (!round) { box.innerHTML = `<p class="note">${t("pdNoRound")}</p>`; return; }
+        const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "settle", args: [BigInt(id), round] });
+        box.innerHTML = slip(instruction({ to: CONFIG.predictions, data, gas: CONFIG.gas.settle, what: t("pdSettleWhat")(id) }));
+      } catch (x) { box.innerHTML = `<p class="note red">${esc(String(x?.shortMessage || x?.message || x))}</p>`; }
+    }
+  });
+}
+
 // ------------------------------------------------------------ Crowd Check page
 async function checkPage(addr) {
   let res = null, recent = [];
@@ -1546,16 +1685,21 @@ function wireCheck(addr) {
 
 // ------------------------------------------------------------ rules page (a charter, contracts as a ledger)
 function rulesPage() {
-  setTimeout(async () => { const el = document.getElementById("csTag"); if (el) el.textContent = (await repDeployed()) ? (zhT() ? "✓ 已上线" : "✓ Live") : (zhT() ? "即将部署" : "Deploying soon"); });
+  const liveTag = (ok) => (ok ? (zhT() ? "✓ 已上线" : "✓ Live") : (zhT() ? "即将部署" : "Deploying soon"));
+  setTimeout(async () => {
+    const a = document.getElementById("tag-CrowdScore"), b = document.getElementById("tag-Predictions");
+    if (a) a.textContent = liveTag(await repDeployed());
+    if (b) b.textContent = liveTag(await pdDeployed());
+  });
   const a = (x) => (x ? `<a href="${CONFIG.explorer}/address/${x}#code" target="_blank" rel="noopener">${x}</a>` : "—");
   const art = (n, title, body) => `<section class="article rv"><div class="an">第${CN_NUM[n]}条<small>${t("art")(n + 1)}</small></div><div><h2>${title}</h2>${body}</div></section>`;
-  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore", "声誉合约", CONFIG.crowdScore], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
+  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore", "声誉合约", CONFIG.crowdScore], ["Predictions", "预测合约", CONFIG.predictions], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.rules"))}<h1>${t("rulesH1")}</h1><p class="lede" style="margin-top:20px">${t("rulesLede")}</p></div><div class="bigmark" aria-hidden="true">章</div></div>
     <div class="charter">
       ${art(0, t("a1h"), `<p><b>${t("a1h")}.</b> ${t("a1p")}</p>`)}
       ${art(1, t("a2h"), `<p>${t("a2p")}</p><div class="tbl-scroll"><table class="ledger contracts" style="margin-top:12px"><thead><tr><th>${t("thContract")}</th><th>${t("thAddress")}</th><th></th></tr></thead><tbody>
-        ${C.map(([n1, n2, addr]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td>${n1 === "CrowdScore" ? `<span class="verified" id="csTag"></span>` : `<span class="verified">${t("verifiedTag")}</span>`}</td></tr>`).join("")}
+        ${C.map(([n1, n2, addr]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td>${n1 === "CrowdScore" || n1 === "Predictions" ? `<span class="verified" id="tag-${n1}"></span>` : `<span class="verified">${t("verifiedTag")}</span>`}</td></tr>`).join("")}
         </tbody></table></div>`)}
       ${art(2, t("a3h"), `<ul>${t("a3l").map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`)}
       ${art(3, t("a4h"), `<ul>${t("a4l").map((x) => `<li class="never">${esc(x)}</li>`).join("")}</ul>`)}
@@ -1564,7 +1708,7 @@ function rulesPage() {
 }
 
 // ---------------------------------------------------------------- chrome + router
-const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["league", "#/league", "nav.league"], ["check", "#/check", "nav.check"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
+const NAV = [["home", "#/", "nav.home"], ["new-poll", "#/new-poll", "nav.new"], ["league", "#/league", "nav.league"], ["predict", "#/predict", "nav.predict"], ["check", "#/check", "nav.check"], ["agents", "#/agents", "nav.agents"], ["rules", "#/rules", "nav.rules"]];
 function chrome(page) {
   document.documentElement.lang = zhT() ? "zh-CN" : "en";
   const other = zhT() ? "en" : "zh";
@@ -1602,6 +1746,7 @@ async function route(keepScroll = false) {
     else if (page === "rules") html = rulesPage();
     else if (page === "league") html = await leaguePage(id === "all" ? "all" : "current");
     else if (page === "check") html = await checkPage(isAddress(id) ? norm(id) : "");
+    else if (page === "predict") html = await predictPage();
     else if (page === "agents") html = await agentsPage();
     else html = await home();
   } catch (e) {
@@ -1613,7 +1758,7 @@ async function route(keepScroll = false) {
   if (!keepScroll) scrollTo(0, 0);
   $app.innerHTML = html;
   $app.classList.remove("enter"); void $app.offsetWidth; $app.classList.add("enter");
-  const title = { "new-poll": t("nav.new"), league: t("nav.league"), check: t("nav.check"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
+  const title = { "new-poll": t("nav.new"), league: t("nav.league"), predict: t("nav.predict"), check: t("nav.check"), agents: t("nav.agents"), rules: t("nav.rules"), poll: valid2(id) && t("pollNo")(id), round: valid2(id) && t("roundNo")(id) }[page];
   document.title = (title ? title + " · " : "") + "Show of Hands · 举手 — " + (zhT() ? "一个 Agent ID，一票" : "One Agent ID, one voice");
   reveal();
 }

@@ -6,5 +6,6 @@
   "fundingRounds": "0x3510B0Cd977a1bc759f674Ef6b5B6Ac769701D7B",
   "attestor": "0x3f2e6f06856421054906c335586c129c1D2EC09F",
   "_note": "Deployed on BNB Smart Chain 2026-11-19. Override with SOH_POLLS / SOH_ROUNDS / SOH_ATTESTOR / SOH_RPC.",
-  "crowdScore": "0x1a912bc6d6fA8E3a3E9Eb28ff31B6bF1610Ecff3"
+  "crowdScore": "0x1a912bc6d6fA8E3a3E9Eb28ff31B6bF1610Ecff3",
+  "predictions": "0x77a23A374729B6482Bc7034cFFC3c78f96869c8a"
 }

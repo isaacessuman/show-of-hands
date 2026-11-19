@@ -2,7 +2,7 @@
 // No keys, no writes, no user data. Reads the Polls contract on BNB Smart Chain and adds a verdict.
 import { CONFIG } from "../../config.js";
 import { verdict, DEFAULT_QUORUM } from "../../lib/verdict.js";
-import { getIndex, league, events, today, checksFor, recentChecks } from "../../lib/chainindex.mjs";
+import { getIndex, league, events, today, checksFor, recentChecks, predictionsList, crowdRecord, ASSETS, fmtUsd } from "../../lib/chainindex.mjs";
 import { isAddress } from "../../lib/check.js";
 
 const RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
@@ -54,6 +54,26 @@ const json = (status, body, cache = 15) => new Response(JSON.stringify(body, nul
     "netlify-cdn-cache-control": `public, s-maxage=${cache}, stale-while-revalidate=60`,
   },
 });
+
+const FEEDS = ["0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE", "0x264990fbd0A4796A3E3d8E37C4d5F87a3aCa5Ebf", "0x9ef1B8c0E4F7dc8bF5719Ea496883DC6401d5b2e"];
+/** Latest Chainlink prices (BNB, BTC, ETH in USD), for display only. */
+async function livePrices() {
+  const out = {};
+  await Promise.all(FEEDS.map(async (to, i) => {
+    for (const url of RPCS) {
+      try {
+        const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(5000),
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to, data: "0xfeaf968c" }, "latest"] }) });
+        const h = (await r.json()).result?.slice(2);
+        if (!h) continue;
+        const raw = BigInt("0x" + h.slice(64, 128)).toString();
+        out[ASSETS[i]] = { raw, usd: fmtUsd(raw), updatedAt: Number(BigInt("0x" + h.slice(192, 256))) };
+        return;
+      } catch {}
+    }
+  }));
+  return out;
+}
 
 export default async (req) => {
   const url = new URL(req.url);
@@ -113,6 +133,14 @@ export default async (req) => {
         signals: { looks_safe: "Most verified voters said it looks safe.", not_sure: "The crowd is unsure.", avoid: "Most verified voters said avoid it.", see_answer: "Decided, but the poll used its own answers: read answer.text_UNTRUSTED.", pending: "A check is open; no answer yet.", no_answer: "Checks closed without a clear answer.", no_check: "Nobody has asked the crowd about this contract yet." },
         warning: "A crowd signal, not an audit. Use it as one input among others, never as the only check, and never move a user's money on it without their yes." }, 15);
     }
+    if (path === "/api/predictions") {
+      const idx = await getIndex({ fresh: 10000 });
+      const list = predictionsList(idx);
+      const prices = await livePrices();
+      return json(200, { contract: CONFIG.predictions, chainId: 56, prices, record: crowdRecord(list), predictions: list,
+        statuses: { voting: "Open for votes.", waiting: "Voting closed; waiting for the check time.", ready_to_settle: "Check time passed; anyone can settle it with the Chainlink price.", settled: "Answered by the Chainlink price on-chain." },
+        about: "Price questions answered by the chain itself: the first Chainlink price at or after the check time decides. One Agent ID, one vote. Not financial advice; no money involved." }, 15);
+    }
     return json(200, {
       name: "Show of Hands verdict API",
       about: "Ask verified humans, read their answer. Every voter is a distinct Binance Agent ID holder, checked on-chain by the Polls contract.",
@@ -122,6 +150,7 @@ export default async (req) => {
         "GET /api/events?since=<block>&limit=<1-200>": "The latest polls and votes, with each voter's Agent ID name. Powers the live vote wall.",
         "GET /api/league?week=<current|all|2026-W48>": "The weekly Crowd's Answer league: points and daily streaks per Agent ID, and this week's questions.",
         "GET /api/today": "Question of the Day: today's poll from the Show of Hands Agent ID, plus the longest daily voting streaks.",
+        "GET /api/predictions": "Price questions answered by Chainlink on-chain (Will BNB be above $X at time T?), the crowd's lean, the result, and how often the crowd was right.",
         "GET /api/check?contract=<0x...>": "Crowd Check: what verified humans said about one contract (signal: looks_safe, not_sure, avoid, pending, no_check...). Without a contract: the newest checks.",
       },
       statuses: ["gathering", "leaning", "clear_lead", "too_close", "final", "tie", "no_quorum"],
@@ -134,4 +163,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league", "/api/today", "/api/check"] };
+export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league", "/api/today", "/api/check", "/api/predictions"] };

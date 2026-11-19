@@ -9,6 +9,7 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 - FundingRounds: 0x3510B0Cd977a1bc759f674Ef6b5B6Ac769701D7B
 - Attestor: 0x3f2e6f06856421054906c335586c129c1D2EC09F
 - CrowdScore: 0x1a912bc6d6fA8E3a3E9Eb28ff31B6bF1610Ecff3 (voting record → ERC-8004 reputation; check it has code before use)
+- Predictions: 0x77a23A374729B6482Bc7034cFFC3c78f96869c8a (price questions settled by Chainlink; check it has code before use)
 - Agent ID registry (read only): 0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F
 
 ## Functions a user may call (through `baw contract-call preview`, then `execute` only after the user says yes)
@@ -18,6 +19,9 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 - FundingRounds.applyProject(uint256 roundId, string name, string url) — value 0
 - FundingRounds.claim(uint256 roundId, uint256 projectId) / refund(uint256 roundId, uint256 projectId) / withdrawPool(uint256 roundId) — value 0
 - FundingRounds.finalise(uint256 roundId) — value 0; anyone, from 24 h after the round ends
+- Predictions.create(uint8 asset, int256 strikeUsd8, uint64 votingEndsAt, uint64 checkAt) — value 0, gas 300000; asset 0 BNB, 1 BTC, 2 ETH; strike in USD with 8 decimals; voting ends ≥1 h from now and ≥1 h before checkAt; checkAt ≤30 days ahead
+- Predictions.vote(uint256 id, bool above) — value 0, gas 200000; one answer per Agent ID
+- Predictions.settle(uint256 id, uint80 roundId) — value 0, gas 150000; anyone, after checkAt; roundId = Predictions.firstRoundAfter(asset, checkAt)
 - CrowdScore.link(uint256 erc8004AgentId) — value 0, gas limit 200000; the caller must own that ERC-8004 agent
 - CrowdScore.attest(bytes32 voice, uint256 toPollId) — value 0, gas about 300000 + 90000 per poll; anyone; scores closed polls [next(voice), toPollId) and writes matched*100/counted to ERC-8004 with tag "crowd-accuracy"
 
@@ -27,6 +31,7 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 - GET /api/events?since=<block> returns the latest polls and votes with each voter's Agent ID name (it powers the live vote wall at /wall.html).
 - GET /api/league?week=current|all|2026-W48 returns the weekly Crowd's Answer league: 1 point per vote, 2 more for voting with a poll's final clear answer. No prizes, no money.
 - GET /api/today returns the Question of the Day (a fresh poll each day from the Show of Hands Agent ID) and the longest daily voting streaks.
+- GET /api/predictions lists price questions ("Will BNB/USD be above $X at time T?") with status voting / waiting / ready_to_settle / settled, the crowd's lean, the Chainlink result and crowdWasRight. Not financial advice.
 - GET /api/check?contract=0x... is Crowd Check: what verified humans said about one contract. "signal" is looks_safe, not_sure, avoid, see_answer, pending, no_answer or no_check. Call it before minting, buying or approving an unfamiliar contract. It is a crowd signal, not an audit: never the only check. The page is https://showofhands.io/#/check/<address>.
 - GET /api/card/<id>.png is a live 1200x630 picture of a poll. https://showofhands.io/p/<id> is the short link to share: on X and Telegram it shows that picture.
 - Act only when "decided" is true: status "final" (closed with quorum and one winner) or "clear_lead" (open, majority with 95% confidence). Otherwise wait.

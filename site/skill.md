@@ -57,6 +57,11 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 | `rep [wallet]` | The user's own crowd-accuracy record: linked ERC-8004 agent, polls ready to score, accuracy % | – |
 | `rep-link <agentId> --from W` | Link this Agent ID's voting record to an ERC-8004 agent the same wallet owns | 0 |
 | `rep-attest --from W` | Write the score for the next closed polls into the ERC-8004 Reputation Registry (tag `crowd-accuracy`) | 0 |
+| `predictions` | Price questions settled by Chainlink: status, the crowd's lean, results, and how often the crowd was right | – |
+| `predict --asset BNB --above 650 [--hours 24] --from W` | Ask "Will BNB/USD be above $650 at <time>?" (BNB, BTC or ETH; 2.5 hours to 30 days) | 0 |
+| `pvote <id> yes\|no --from W` | Answer a price question (one answer per Agent ID) | 0 |
+| `settle <id> --from W` | Settle a question after its check time with the first Chainlink price after it (anyone may) | 0 |
+| `pattest --from W` | Write prediction accuracy to ERC-8004 (tag `prediction-accuracy`), using the agent linked with `rep-link` | 0 |
 | `abi` | Contract addresses and function list | – |
 
 ## Ask the crowd (for agents)
@@ -81,6 +86,10 @@ When the user (or you) is about to interact with an unfamiliar contract, run `ch
 
 CrowdScore turns a voting record into an ERC-8004 reputation entry: how often this Agent ID voted for the crowd's final answer. A poll counts once it has closed with at least 5 voters and one clear top answer. Polls are scored in order from where the last score ended, so nobody can pick only the polls they got right. Run `rep` for the user's own wallet only, never to look someone up. Link once with `rep-link`, then `rep-attest` whenever new polls have closed. Both send no BNB and still go through preview and the user's yes.
 
+## Price predictions (settled on-chain)
+
+"Will BNB/USD be above $X at time T?" Voting closes at least an hour before T. After T, anyone may run `settle`: the contract only accepts the first Chainlink price at or after T, so nobody can pick the answer. Points in the League: 1 per answer, 3 more when the price proves the answer right. These are not trades and involve no money. Never present the crowd's lean as financial advice, and never move the user's funds based on it.
+
 ## Error table
 
 | Error | Plain-language fix |
@@ -103,6 +112,7 @@ CrowdScore turns a voting record into an ERC-8004 reputation entry: how often th
 ## Owner powers (disclosure)
 
 - **The contracts have no owner and no admin.** They can't be paused, upgraded or drained, and they take no fee.
+- Predictions has no owner either. It only reads the Chainlink BNB/USD, BTC/USD and ETH/USD feeds (fixed at deployment) and writes scores to ERC-8004. Chainlink runs the feeds.
 - CrowdScore also has no owner: it only reads Polls and writes scores to the ERC-8004 Reputation Registry, which is run by a third party and is upgradeable.
 - **Each funding round has a steward:** the Agent ID holder who opened it and seeded its pool. Before the round is finalised, the steward can:
   - approve projects;

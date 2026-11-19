@@ -11,6 +11,12 @@ const MAX_CHUNKS_PER_CALL = 48;        // keeps one request under the function t
 const T_CREATED = "0xaf4b61a2a3bc5f04d62c92b8409507cdc7110d18e6ef894ec2bccde1de2804fd";
 const T_VOTED = "0xf1a292b5c85a98866e2f9a67c79f4426fcc55dee229ee820462c1755212fb523";
 const SEL_HANDLE = "0xc50a1514";
+// Predictions contract events
+const T_P_CREATED = "0x00e2bd71e6395a25edd9a178f5e4fe6a453c69c3c52ac713c02164a7fc1ba606";
+const T_P_VOTED = "0x688dfd3fd88e5640539068db8245befe5cc74cd43e2325472be60b376f9038d9";
+const T_P_SETTLED = "0xe0c594973eb8413677fe0cea05d779d4255f1b4387cf98b31b9b86990ff55686";
+export const ASSETS = ["BNB", "BTC", "ETH"];
+const int256 = (w) => { const v = BigInt("0x" + w); return v >= 1n << 255n ? v - (1n << 256n) : v; };
 const LOG_RPCS = ["https://bsc-rpc.publicnode.com", process.env.BSC_RPC_URL].filter(Boolean);
 const CALL_RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
 
@@ -52,7 +58,7 @@ async function store() {
   try { const { getStore } = await import("@netlify/blobs"); return getStore({ name: "soh-index", consistency: "strong" }); }
   catch { return null; }
 }
-const empty = () => ({ v: 1, lastBlock: START_BLOCK - 1, polls: {}, votes: [], handles: {} });
+const empty = () => ({ v: 1, lastBlock: START_BLOCK - 1, polls: {}, votes: [], handles: {}, preds: {}, pvotes: [] });
 
 async function handleOf(addr) {
   try {
@@ -68,16 +74,31 @@ export async function getIndex({ fresh = 4000 } = {}) {
   let idx = mem;
   if (s) { try { idx = (await s.get("index", { type: "json" })) || idx; } catch {} }
   if (!idx || idx.v !== 1) idx = empty();
+  idx.preds ||= {}; idx.pvotes ||= [];
 
   const head = parseInt(await rpc(LOG_RPCS, "eth_blockNumber", []), 16) - 1;
   const ranges = [];
   for (let from = idx.lastBlock + 1; from <= head && ranges.length < MAX_CHUNKS_PER_CALL; from += CHUNK) ranges.push([from, Math.min(head, from + CHUNK - 1)]);
   if (ranges.length) {
-    const results = await pool(ranges, 6, ([a, b]) => rpc(LOG_RPCS, "eth_getLogs", [{ address: CONFIG.polls, fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }]));
+    const results = await pool(ranges, 6, ([a, b]) => rpc(LOG_RPCS, "eth_getLogs", [{ address: [CONFIG.polls, CONFIG.predictions].filter(Boolean), fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }]));
     const logs = results.flat().sort((x, y) => parseInt(x.blockNumber, 16) - parseInt(y.blockNumber, 16) || parseInt(x.logIndex, 16) - parseInt(y.logIndex, 16));
-    const newVotes = [];
+    const newVotes = [], newPVotes = [];
+    const predAddr = (CONFIG.predictions || "").toLowerCase();
     for (const l of logs) {
       const b = parseInt(l.blockNumber, 16), id = Number(BigInt(l.topics[1]));
+      if (predAddr && l.address.toLowerCase() === predAddr) {
+        const h = l.data.slice(2);
+        if (l.topics[0] === T_P_CREATED) {
+          idx.preds[id] = { id, creator: "0x" + l.topics[3].slice(26), asset: num(h, 0), strike: int256(word(h, 1)).toString(),
+            votingEndsAt: num(h, 2), checkAt: num(h, 3), block: b, tx: l.transactionHash, settled: null };
+        } else if (l.topics[0] === T_P_VOTED) {
+          const v = { p: id, voter: "0x" + l.topics[3].slice(26), above: num(h, 0) === 1, b, tx: l.transactionHash };
+          idx.pvotes.push(v); newPVotes.push(v);
+        } else if (l.topics[0] === T_P_SETTLED && idx.preds[id]) {
+          idx.preds[id].settled = { round: BigInt("0x" + word(h, 0)).toString(), price: int256(word(h, 1)).toString(), above: num(h, 2) === 1, tx: l.transactionHash };
+        }
+        continue;
+      }
       if (l.topics[0] === T_CREATED) {
         const h = l.data.slice(2);
         idx.polls[id] = { id, creator: "0x" + l.topics[3].slice(26), endsAt: num(h, 0), question: str(h, num(h, 1)), options: strArr(h, num(h, 2)), block: b, tx: l.transactionHash };
@@ -87,12 +108,13 @@ export async function getIndex({ fresh = 4000 } = {}) {
       }
     }
     // timestamps for the blocks that had events, and Agent ID names for new voters and creators
-    const blocks = [...new Set([...newVotes.map((v) => v.b), ...Object.values(idx.polls).filter((p) => !p.t).map((p) => p.block)])];
+    const blocks = [...new Set([...newVotes.map((v) => v.b), ...newPVotes.map((v) => v.b), ...Object.values(idx.polls).filter((p) => !p.t).map((p) => p.block), ...Object.values(idx.preds).filter((p) => !p.t).map((p) => p.block)])];
     const times = {};
     await pool(blocks, 6, async (b) => { try { times[b] = parseInt((await rpc(LOG_RPCS, "eth_getBlockByNumber", ["0x" + b.toString(16), false])).timestamp, 16); } catch {} });
     newVotes.forEach((v) => (v.t = times[v.b] || 0));
-    Object.values(idx.polls).forEach((p) => { if (!p.t && times[p.block]) p.t = times[p.block]; });
-    const who = [...new Set([...newVotes.map((v) => v.voter), ...Object.values(idx.polls).map((p) => p.creator)])].filter((a) => !(a in idx.handles));
+    newPVotes.forEach((v) => (v.t = times[v.b] || 0));
+    [...Object.values(idx.polls), ...Object.values(idx.preds)].forEach((p) => { if (!p.t && times[p.block]) p.t = times[p.block]; });
+    const who = [...new Set([...newVotes.map((v) => v.voter), ...newPVotes.map((v) => v.voter), ...Object.values(idx.polls).map((p) => p.creator), ...Object.values(idx.preds).map((p) => p.creator)])].filter((a) => !(a in idx.handles));
     await pool(who, 6, async (a) => { idx.handles[a] = await handleOf(a); });
     idx.lastBlock = ranges[ranges.length - 1][1];
     if (s) { try { await s.setJSON("index", idx); } catch {} }
@@ -126,12 +148,12 @@ export function isoWeek(sec) {
   return { key: `${y}-W${String(Math.round((monday - jan4Mon) / 604800) + 1).padStart(2, "0")}`, start: monday, end: monday + 604800 };
 }
 
-export const SCORING = { vote: 1, match: 2 };
+export const SCORING = { vote: 1, match: 2, predict: 1, correct: 3 };
 
 /** Daily streaks (UTC days with at least one vote). A streak stays alive until a whole day passes with no vote. */
 export function streaks(idx, nowSec = Math.floor(Date.now() / 1000)) {
   const days = {};
-  for (const v of idx.votes) (days[v.voter] ||= new Set()).add(Math.floor((v.t || nowSec) / 86400));
+  for (const v of [...idx.votes, ...(idx.pvotes || [])]) (days[v.voter] ||= new Set()).add(Math.floor((v.t || nowSec) / 86400));
   const today = Math.floor(nowSec / 86400), out = {};
   for (const [voter, set] of Object.entries(days)) {
     const d = [...set].sort((a, b) => a - b);
@@ -173,9 +195,18 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
     r.votes++; r.points += SCORING.vote;
     if (winners[v.p] === v.o) { r.matches++; r.points += SCORING.match; }
   }
+  // predictions: 1 point for each one you answer, 3 more when reality agrees with you (settled by Chainlink)
+  for (const v of idx.pvotes || []) {
+    (weeksOf[v.voter] ||= new Set()).add(isoWeek(v.t || nowSec).key);
+    if (range && !(v.t >= range.start && v.t < range.end)) continue;
+    const r = (rows[v.voter] ||= { key: v.voter, who: label(idx, v.voter), named: !!handleName(idx, v.voter), points: 0, votes: 0, matches: 0 });
+    r.predictions = (r.predictions || 0) + 1; r.points += SCORING.predict;
+    const s = idx.preds[v.p]?.settled;
+    if (s && s.above === v.above) { r.correct = (r.correct || 0) + 1; r.points += SCORING.correct; }
+  }
   const st = streaks(idx, nowSec);
   const leaders = Object.values(rows)
-    .map((r) => ({ ...r, weeks: weeksOf[r.key]?.size || 0, streak: st[r.key]?.streak || 0, bestStreak: st[r.key]?.best || 0 }))
+    .map((r) => ({ predictions: 0, correct: 0, ...r, weeks: weeksOf[r.key]?.size || 0, streak: st[r.key]?.streak || 0, bestStreak: st[r.key]?.best || 0 }))
     .sort((a, b) => b.points - a.points || b.matches - a.matches || b.weeks - a.weeks || a.key.localeCompare(b.key))
     .map(({ key, ...r }) => r);
   leaders.forEach((r, i) => (r.rank = i && leaders[i - 1].points === r.points && leaders[i - 1].matches === r.matches ? leaders[i - 1].rank : i + 1));
@@ -188,7 +219,7 @@ export function league(idx, { week = "current", nowSec = Math.floor(Date.now() /
     week: range ? range.key : "all", weekStart: range?.start ?? null, weekEnd: range?.end ?? null, currentWeek: cur.key,
     players: leaders.length, leaders: leaders.slice(0, 100), questions, scoring: SCORING,
     streakLeaders: topStreaks(idx, st),
-    rules: "1 point for every vote. 2 more points when a poll closes with a clear crowd answer and you voted for it. One Agent ID, one entry. No prizes, no money: a public record of who shows up and reads the crowd well.",
+    rules: "1 point for every vote. 2 more points when a poll closes with a clear crowd answer and you voted for it. 1 point for every price prediction you answer, 3 more when the Chainlink price proves you right. One Agent ID, one entry. No prizes, no money: a public record of who shows up and reads the crowd well.",
   };
 }
 
@@ -246,4 +277,34 @@ export function events(idx, { since = 0, limit = 60 } = {}) {
   }
   out.sort((a, b) => a.block - b.block || (a.type === "poll" ? -1 : 1));
   return out.slice(-limit);
+}
+
+// --- predictions ("Will BNB be above $X at time T?"), settled on-chain from Chainlink
+export const fmtUsd = (v) => { const n = Number(BigInt(v)) / 1e8; return "$" + n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
+export function predictionStatus(p, nowSec) {
+  if (p.settled) return "settled";
+  if (nowSec < p.votingEndsAt) return "voting";
+  if (nowSec < p.checkAt) return "waiting";
+  return "ready_to_settle";
+}
+export function predictionsList(idx, { nowSec = Math.floor(Date.now() / 1000), limit = 50 } = {}) {
+  const tally = {};
+  for (const v of idx.pvotes || []) { const t = (tally[v.p] ||= { yes: 0, no: 0 }); v.above ? t.yes++ : t.no++; }
+  return Object.values(idx.preds || {}).sort((a, b) => b.id - a.id).slice(0, limit).map((p) => {
+    const t = tally[p.id] || { yes: 0, no: 0 }, total = t.yes + t.no, status = predictionStatus(p, nowSec);
+    const crowd = total ? (t.yes > t.no ? "above" : t.no > t.yes ? "not_above" : "split") : null;
+    const reality = p.settled ? (p.settled.above ? "above" : "not_above") : null;
+    return {
+      id: p.id, asset: ASSETS[p.asset], assetIndex: p.asset, strike: p.strike, strikeUsd: fmtUsd(p.strike),
+      question: `Will ${ASSETS[p.asset]}/USD be above ${fmtUsd(p.strike)} at ${new Date(p.checkAt * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC?`,
+      votingEndsAt: p.votingEndsAt, checkAt: p.checkAt, status, yes: t.yes, no: t.no, verifiedVoters: total, crowd,
+      settled: p.settled ? { price: p.settled.price, priceUsd: fmtUsd(p.settled.price), round: p.settled.round, above: p.settled.above, tx: p.settled.tx } : null,
+      crowdWasRight: reality && crowd && crowd !== "split" ? crowd === reality : null, creator: label(idx, p.creator),
+    };
+  });
+}
+/** How often the crowd's majority was right about settled predictions. */
+export function crowdRecord(list) {
+  const done = list.filter((p) => p.crowdWasRight !== null);
+  return { settled: done.length, crowdRight: done.filter((p) => p.crowdWasRight).length };
 }

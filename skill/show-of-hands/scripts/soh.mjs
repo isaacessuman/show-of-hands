@@ -18,13 +18,15 @@ const ADDR = {
   rounds: process.env.SOH_ROUNDS || CFG.fundingRounds,
   attestor: process.env.SOH_ATTESTOR || CFG.attestor,
   crowdScore: process.env.SOH_CROWDSCORE || CFG.crowdScore,
+  predictions: process.env.SOH_PREDICTIONS || CFG.predictions,
 };
+const PD_ASSETS = ["BNB", "BTC", "ETH"];
 const client = createPublicClient({ chain: bsc, transport: http(process.env.SOH_RPC || CFG.rpc) });
 
 // Gas limits measured on a fork of BSC mainnet, with headroom. Low estimates are a known cause of failed calls.
 const GAS = { vote: 250_000n, createPoll: 900_000n, applyProject: 450_000n, backBase: 300_000n, backPer: 120_000n,
   claim: 150_000n, refund: 120_000n, withdrawPool: 120_000n, topUpPool: 120_000n, finalise: 3_000_000n,
-  link: 200_000n, attest: 400_000n };
+  link: 200_000n, attest: 400_000n, predCreate: 300_000n, predVote: 200_000n, settle: 150_000n };
 
 const die = (msg, code = 1) => { console.log(JSON.stringify({ ok: false, error: msg }, null, 2)); process.exit(code); };
 const need = (k) => ADDR[k] || die(`The ${k} contract address is not set yet (not deployed, or set SOH_${k.toUpperCase()}).`);
@@ -63,6 +65,13 @@ const FIXES = {
   NotLinked: "Link an ERC-8004 agent first: rep-link <agentId> --from W.",
   OwnerChanged: "The linked ERC-8004 agent changed owner. Link again from the wallet that owns it now.",
   PollStillOpen: "A poll in the range is still open. Wait until it closes.",
+  OpenPredictionExists: "This Agent ID already has a price question open for voting. Wait until its voting closes.",
+  VotingClosed: "Voting on this price question has closed.",
+  BadTimes: "Check time must be 2.5 hours to 30 days ahead.",
+  TooEarly: "The check time has not passed yet.",
+  AlreadySettled: "This price question is already settled.",
+  BadRound: "That price round is not the first one after the check time. Run settle again to find it.",
+  NotSettled: "A price question in the range is not settled yet. Settle it first.",
   RangeTooLong: "At most 100 polls per score update. Run rep-attest again for the rest.",
   RegistryUnavailable: "The Agent ID registry did not answer. Try again later; no money moved.",
   AlreadyVoted: "This Agent ID already voted in this poll. Each Agent ID has one vote.",
@@ -233,6 +242,73 @@ async function main() {
       return out(tx({ from, to: ADDR.crowdScore, data, gas: 300_000n + 90_000n * (to - start), action: "attest", check,
         summary: `Write the crowd-accuracy score for polls ${start}–${to - 1n} into the ERC-8004 Reputation Registry (tag "crowd-accuracy"). Sends no BNB.` }));
     }
+    case "predictions": {
+      // Price questions answered by Chainlink on-chain, with the crowd's lean and results (read-only, over HTTPS).
+      const site = (process.env.SOH_SITE || "https://showofhands.io").replace(/\/$/, "");
+      const r = await fetch(`${site}/api/predictions`, { signal: AbortSignal.timeout(15000) });
+      if (!r.ok) die(`The site answered ${r.status}.`);
+      return out({ ok: true, ...(await r.json()) });
+    }
+    case "predict": {
+      // predict --asset BNB --above 650 [--hours 24] --from W
+      await live("predictions"); if (!from) die("--from is required.");
+      const asset = PD_ASSETS.indexOf(String(o.asset || "").toUpperCase());
+      if (asset < 0) die("--asset must be BNB, BTC or ETH.");
+      const above = Number(String(o.above || "").replace(/[$,]/g, ""));
+      if (!(above > 0)) die("--above must be a USD price, e.g. --above 650");
+      const hours = Number(o.hours || 24);
+      if (!(hours >= 2.5 && hours <= 720)) die("--hours must be from 2.5 to 720.");
+      const nowS = Math.floor(Date.now() / 1000), checkAt = Math.ceil((nowS + hours * 3600) / 3600) * 3600;
+      const votingEndsAt = Math.max(nowS + 3900, nowS + Math.floor((checkAt - nowS) / 2));
+      const strike = BigInt(Math.round(above * 1e8));
+      const a = [asset, strike, BigInt(votingEndsAt), BigInt(checkAt)];
+      const iso = (x) => new Date(x * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "create", args: a });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "create", a);
+      return out(tx({ from, to: ADDR.predictions, data, gas: GAS.predCreate, action: "create", check,
+        summary: `Ask: "Will ${PD_ASSETS[asset]}/USD be above $${above} at ${iso(checkAt)}?" Voting closes ${iso(votingEndsAt)}; the first Chainlink price after the check time settles it. Sends no BNB.` }));
+    }
+    case "pvote": {
+      // pvote <id> yes|no --from W
+      await live("predictions"); if (!from) die("--from is required.");
+      const id = int(o._[0], "prediction id"), ans = String(o._[1] || "").toLowerCase();
+      if (!["yes", "no"].includes(ans)) die("Answer must be yes (above) or no.");
+      const a = [id, ans === "yes"];
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "vote", args: a });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "vote", a);
+      return out(tx({ from, to: ADDR.predictions, data, gas: GAS.predVote, action: "vote", check,
+        summary: `Answer ${ans.toUpperCase()} on price question ${id}. One answer per Agent ID. Sends no BNB. Not financial advice.` }));
+    }
+    case "settle": {
+      // settle <id> --from W. Anyone may settle after the check time; the contract only accepts the first round after it.
+      await live("predictions"); if (!from) die("--from is required.");
+      const id = int(o._[0], "prediction id");
+      const p = await read("predictions", "Predictions", "getPrediction", [id]);
+      if (p.outcome !== 0) die("Already settled.");
+      if (BigInt(Math.floor(Date.now() / 1000)) < p.checkAt) die(`Too early: the check time is ${new Date(Number(p.checkAt) * 1000).toISOString()}.`);
+      const round = await read("predictions", "Predictions", "firstRoundAfter", [p.asset, p.checkAt]);
+      if (!round) die("The price feed has no round after the check time yet. Try again in a minute.");
+      const a = [id, round];
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "settle", args: a });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "settle", a);
+      return out(tx({ from, to: ADDR.predictions, data, gas: GAS.settle, action: "settle", check,
+        summary: `Settle price question ${id} with Chainlink round ${round} (the first price at or after the check time). Sends no BNB.` }));
+    }
+    case "pattest": {
+      // pattest --from W [--wallet W2]: write prediction accuracy to ERC-8004 (uses the agent linked with rep-link)
+      await live("predictions"); if (!from) die("--from is required.");
+      const w = addr(o.wallet || from, "wallet"), voice = await read("polls", "Polls", "voiceOf", [w]);
+      if (/^0x0+$/.test(voice)) die(FIXES.NoAgentID);
+      const [start, n] = await Promise.all([read("predictions", "Predictions", "next", [voice]), read("predictions", "Predictions", "count")]);
+      let to = start; const cap = start + 100n < n ? start + 100n : n;
+      while (to < cap && (await read("predictions", "Predictions", "getPrediction", [to])).outcome !== 0) to++;
+      if (to === start) die("Nothing new to score: the next price question is not settled yet.");
+      const a = [voice, to];
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "attest", args: a });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "attest", a);
+      return out(tx({ from, to: ADDR.predictions, data, gas: 250_000n + 15_000n * (to - start), action: "attest", check,
+        summary: `Write prediction accuracy for questions ${start}-${to - 1n} into the ERC-8004 Reputation Registry (tag "prediction-accuracy"). Sends no BNB.` }));
+    }
     case "ask":
     case "create-poll": {
       need("polls"); if (!from) die("--from is required.");
@@ -312,7 +388,7 @@ async function main() {
     }
     case "abi": return out({ ok: true, contracts: ADDR, functions: Object.fromEntries(Object.entries(ABI).map(([k, v]) => [k, v.filter((x) => x.type === "function").map((f) => `${f.name}(${f.inputs.map((i) => i.type).join(",")})`)])) });
     default:
-      die("Commands: polls | poll <id> [--from] | verdict <id|latest> [--quorum 5] | ask --from --question --options \"A|B\" [--hours] | vote <poll> <option> --from | create-poll --from --question --options \"A|B\" [--hours] | round <id> | back <round> --split \"pid:bnb,...\" --from | apply <round> --name [--url] --from | claim <round> <project> --from | refund <round> <project> --from | finalise <round> --from | today | check <addr> | ask-check <addr> --from | rep [wallet] | rep-link <agentId> --from | rep-attest --from | abi");
+      die("Commands: polls | poll <id> [--from] | verdict <id|latest> [--quorum 5] | ask --from --question --options \"A|B\" [--hours] | vote <poll> <option> --from | create-poll --from --question --options \"A|B\" [--hours] | round <id> | back <round> --split \"pid:bnb,...\" --from | apply <round> --name [--url] --from | claim <round> <project> --from | refund <round> <project> --from | finalise <round> --from | today | check <addr> | ask-check <addr> --from | rep [wallet] | rep-link <agentId> --from | rep-attest --from | predictions | predict --asset BNB --above 650 [--hours 24] --from | pvote <id> yes|no --from | settle <id> --from | pattest --from | abi");
   }
 }
 const out = (x) => console.log(JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toString() : v), 2));
