@@ -16,6 +16,7 @@ const T = {
     "nav.home": "Home", "nav.new": "Ask a question", "nav.agents": "For agents", "nav.rules": "Rules & safety", "nav.rounds": "Funding rounds", "nav.league": "League", "nav.predict": "Predict", "nav.check": "Crowd check",
     qdK: "Question of the Day", qdNone: "Today's question is on its way. Meanwhile, every vote on any poll keeps your streak alive.", qdVote: "Vote today", qdSee: "See the result", qdLeft: (h, m) => `${h}h ${m}m left today`,
     qdStreak: "Voting on any day keeps your streak alive. Miss a whole day and it starts again.", qdTop: "Longest streaks", qdDays: (n) => `${n} ${n === 1 ? "day" : "days"}`, qdNoStreak: "No streaks yet. Vote today to start one.",
+    v30K: "Vote in 30 seconds", v30Need: "You need: an Agentic Wallet with an Agent ID, an AI assistant with the baw tool, Developer Mode on in the Binance App, and about $0.003 of BNB for gas.", v30Pick: "Pick your answer to today's question:", v30Free: "No reward, no token, no badge. Just your voice, counted once.",
     lgStreak: "Streak", lgBest: "Best",
     ckH1: "Is this contract safe? <em>Ask the crowd.</em>", ckLede: "Before you or your agent mints, buys or approves anything, see what verified humans said about the contract. One Agent ID, one vote, so bots can’t fake a good review.",
     ckLabel: "Contract address on BNB Chain", ckPh: "0x…", ckGo: "Check", ckBad: "That isn't a contract address. It should be 0x followed by 40 letters and numbers.",
@@ -181,6 +182,7 @@ const T = {
     "nav.home": "首页", "nav.new": "发起投票", "nav.agents": "给智能体", "nav.rules": "规则与安全", "nav.rounds": "资助轮", "nav.league": "联赛", "nav.predict": "预测", "nav.check": "众人鉴定",
     qdK: "每日一问", qdNone: "今天的问题马上就来。在此之前，任何一次投票都能保持你的连续记录。", qdVote: "今天投票", qdSee: "查看结果", qdLeft: (h, m) => `今天还剩 ${h} 小时 ${m} 分`,
     qdStreak: "每天投一次票就能保持连续记录，整整一天不投就会重新开始。", qdTop: "最长连续投票", qdDays: (n) => `${n} 天`, qdNoStreak: "还没有连续记录。今天投一票就开始。",
+    v30K: "30 秒投票", v30Need: "你需要：一个带 Agent ID 的 Agentic Wallet、一个装有 baw 工具的 AI 助手、在币安 App 中开启开发者模式，以及约 $0.003 的 BNB 作为 gas。", v30Pick: "选择你对今日问题的答案：", v30Free: "没有奖励，没有代币，没有徽章。只有你的一票，只算一次。",
     lgStreak: "连续", lgBest: "最长",
     ckH1: "这个合约安全吗？<em>问问众人。</em>", ckLede: "在你或你的智能体铸造、购买或授权之前，先看看已验证的真人怎么评价这个合约。一个 Agent ID 一票，机器人刷不出好评。",
     ckLabel: "BNB Chain 上的合约地址", ckPh: "0x…", ckGo: "查询", ckBad: "这不是合约地址。应为 0x 加 40 位字母和数字。",
@@ -1514,6 +1516,26 @@ function streakList(rows) {
   if (!rows || !rows.length) return `<p class="note">${t("qdNoStreak")}</p>`;
   return `<ol class="streaks">${rows.map((r) => `<li><span class="untrusted">${esc(r.who)}</span><b>${esc(t("qdDays")(r.streak))}</b></li>`).join("")}</ol>`;
 }
+/** "Vote in 30 seconds": pick an option for today's question and get the paste-ready instruction on the home page. */
+function v30HTML(d) {
+  return `<div class="v30" id="v30"><div class="label">${t("v30K")} <span class="cn">举手</span></div>
+    <p class="v30need">${esc(t("v30Need"))}</p><p class="v30pick">${esc(t("v30Pick"))}</p>
+    <div class="presets v30opts" role="group" aria-label="${esc(t("v30Pick"))}">${d.options_UNTRUSTED.map((o, i) => `<button type="button" class="untrusted" data-v30="${i}" aria-pressed="false">${esc(o)}</button>`).join("")}</div>
+    <div id="v30instr" aria-live="polite"></div><p class="note">${esc(t("v30Free"))}</p></div>`;
+}
+function wireV30(box, d) {
+  const w = box.querySelector("#v30"); if (!w || !d) return;
+  w.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-v30]"); if (!b) return;
+    const opt = Number(b.dataset.v30), id = d.poll;
+    w.querySelectorAll("[data-v30]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    const data = encodeFunctionData({ abi: ABI.Polls, functionName: "vote", args: [BigInt(id), opt] });
+    const text = instruction({ to: CONFIG.polls, data, gas: CONFIG.gas.vote,
+      what: lang === "zh" ? `在第 ${id} 号投票中选择选项 ${opt}。不发送任何 BNB。` : `vote in poll ${id}, option ${opt}. It sends no BNB.` });
+    const out = w.querySelector("#v30instr"); out.innerHTML = slip(text, t("yourMark") + d.options_UNTRUSTED[opt]);
+    out.querySelector(".copy")?.focus({ preventScroll: true });
+  });
+}
 async function loadToday() {
   const box = document.getElementById("qotd"); if (!box) return;
   let d = null;
@@ -1527,8 +1549,9 @@ async function loadToday() {
     : `<div class="qcard empty"><div class="q">${t("qdNone")}</div>${d && d.poll !== null ? `<a class="btn sm" href="#/poll/${d.poll}" style="margin-top:14px">${t("qdSee")} <span class="arr">→</span></a>` : ""}</div>`;
   box.innerHTML = `<div class="qhead"><div class="label">${t("qdK")} <span class="cn">每日一问</span></div><span class="qclock">${esc(clock)}</span></div>
     <div class="qgrid">${main}<div class="qside"><div class="label">${t("qdTop")} <span class="cn">连</span></div>${streakList(d?.streakLeaders)}<p class="note">${t("qdStreak")}</p>
-    <a class="link" href="#/league">${t("nav.league")} →</a></div></div>`;
+    <a class="link" href="#/league">${t("nav.league")} →</a></div></div>${d && d.poll !== null && d.open ? v30HTML(d) : ""}`;
   growBars(box);
+  wireV30(box, d);
 }
 
 // ------------------------------------------------------------ Predictions: price questions settled by Chainlink on-chain
@@ -1569,7 +1592,7 @@ async function predictPage() {
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.predict"))}<h1>${t("pdH1")}</h1><p class="lede" style="margin-top:20px;max-width:60ch">${t("pdLede")}</p></div><div class="bigmark" aria-hidden="true">卜</div></div>
     <div class="label">${t("pdNow")} <span class="cn">价</span></div>
-    <div class="ledger-strip rv">${tiles}<div><div class="n" style="font-size:clamp(22px,2.4vw,32px)">${rec.crowdRight}/${rec.settled}</div><div class="l">${esc(t("pdRecord")(rec.crowdRight, rec.settled))}</div></div></div>
+    <div class="ledger-strip pdstrip rv">${tiles}<div><div class="n" style="font-size:clamp(22px,2.4vw,32px)">${rec.crowdRight}/${rec.settled}</div><div class="l">${esc(t("pdRecord")(rec.crowdRight, rec.settled))}</div></div></div>
     ${live ? "" : `<p class="note" style="margin-top:20px">${t("pdSoon")}</p>`}
     <div class="two" style="margin-top:clamp(40px,6vw,72px)">
       <div>${list.length ? `<div class="plist pdlist">${list.map(pdCard).join("")}</div>` : `<div class="blank"><div class="mk" aria-hidden="true">卜</div><div><h3>${t("pdEmpty")}</h3></div></div>`}</div>

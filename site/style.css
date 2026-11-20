@@ -524,6 +524,11 @@ table.lg td.rk{font:400 20px var(--f-display);color:var(--wash)}
 .qhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .qclock{font:500 13px var(--f-ui);letter-spacing:.08em;color:var(--seal);font-variant-numeric:tabular-nums}
 .qgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:clamp(20px,3vw,40px);align-items:start}
+.v30{margin-top:clamp(24px,3vw,36px);padding:clamp(20px,2.6vw,32px);border:1px solid var(--rule);border-left:4px solid var(--seal);background:color-mix(in srgb,var(--paper-3) 75%,transparent)}
+.v30need{margin:10px 0 0;color:var(--ink-2);max-width:70ch;line-height:1.55}
+.v30pick{margin:18px 0 10px;font-weight:600}
+.v30opts{flex-wrap:wrap}
+.v30 .note{margin:16px 0 0}
 .qcard{display:block;text-decoration:none;color:inherit;border:1px solid var(--rule);background:color-mix(in srgb,var(--paper-3) 75%,transparent);padding:clamp(20px,2.6vw,32px);min-width:0;transition:border-color .2s}
 a.qcard:hover{border-color:var(--ink)}
 .qcard .q{font:400 clamp(24px,2.8vw,36px)/1.2 var(--f-display);margin:12px 0 18px;letter-spacing:-.01em}
@@ -565,6 +570,12 @@ table.lg small.best{color:var(--wash);font-size:12px}
 
 /* ---------- predictions ---------- */
 .pcard.big.pdcard .q{max-width:none;font:400 clamp(20px,2vw,25px)/1.25 var(--f-display);margin:10px 0 14px}
+.pdlist{display:grid;gap:20px}
+.pdlist .pcard.big{padding:clamp(22px,2.6vw,32px);border:1px solid var(--rule)}
+.pdlist .pcard.big .pmeta2{margin-top:6px}
+.pdlist .pdres{margin-top:20px;padding:14px 18px}
+.pdlist .note{margin:14px 0 0}
+.pdstrip .n{font-size:clamp(26px,2.9vw,42px)}
 .pdact{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .pdres{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;border:1px solid var(--rule);border-left:4px solid var(--wash)}
 .pdres.up{border-left-color:var(--ink)}.pdres.down{border-left-color:var(--seal)}
