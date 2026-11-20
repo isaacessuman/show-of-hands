@@ -1729,7 +1729,7 @@ function rulesPage() {
   });
   const a = (x) => (x ? `<a href="${CONFIG.explorer}/address/${x}#code" target="_blank" rel="noopener">${x}</a>` : "—");
   const art = (n, title, body) => `<section class="article rv"><div class="an">第${CN_NUM[n]}条<small>${t("art")(n + 1)}</small></div><div><h2>${title}</h2>${body}</div></section>`;
-  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore v2", "声誉合约", CONFIG.crowdScore, "CrowdScore"], ["Predictions v2", "预测合约", CONFIG.predictions, "Predictions"], ["CrowdScore v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.crowdScoreV1], ["Predictions v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.predictionsV1], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
+  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore v2", "声誉合约", CONFIG.crowdScore], ["Predictions v2", "预测合约", CONFIG.predictions], ["CrowdScore v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.crowdScoreV1], ["Predictions v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.predictionsV1], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.rules"))}<h1>${t("rulesH1")}</h1><p class="lede" style="margin-top:20px">${t("rulesLede")}</p></div><div class="bigmark" aria-hidden="true">章</div></div>
     <div class="charter">
