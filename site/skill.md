@@ -54,14 +54,15 @@ You need Binance's wallet tool (`baw`, from the `binance-agentic-wallet` skill) 
 | `claim <round> <project> --from W` | Project wallet collects backing + matching after finalise | 0 |
 | `refund <round> <project> --from W` | Get your backing back if the project was delisted or the round cancelled | 0 |
 | `finalise <round> --from W` | Settle a round, open to anyone from 24 hours after it ends | 0 |
-| `rep [wallet]` | The user's own crowd-accuracy record: linked ERC-8004 agent, polls ready to score, accuracy % | – |
-| `rep-link <agentId> --from W` | Link this Agent ID's voting record to an ERC-8004 agent the same wallet owns | 0 |
-| `rep-attest --from W` | Write the score for the next closed polls into the ERC-8004 Reputation Registry (tag `crowd-accuracy`) | 0 |
+| `rep [wallet]` | The user's own lifetime crowd and prediction accuracy: linked ERC-8004 agent, what is ready to add | – |
+| `rep-link <agentId> --from W` | Link this Agent ID's record to an ERC-8004 agent the same wallet owns (an existing score moves there) | 0 |
+| `rep-attest --from W` | Add newly closed polls to the lifetime score and replace the one live ERC-8004 entry (tag `crowd-accuracy`) | 0 |
 | `predictions` | Price questions settled by Chainlink: status, the crowd's lean, results, and how often the crowd was right | – |
 | `predict --asset BNB --above 650 [--hours 24] --from W` | Ask "Will BNB/USD be above $650 at <time>?" (BNB, BTC or ETH; 2.5 hours to 30 days) | 0 |
 | `pvote <id> yes\|no --from W` | Answer a price question (one answer per Agent ID) | 0 |
-| `settle <id> --from W` | Settle a question after its check time with the first Chainlink price after it (anyone may) | 0 |
-| `pattest --from W` | Write prediction accuracy to ERC-8004 (tag `prediction-accuracy`), using the agent linked with `rep-link` | 0 |
+| `settle <id> --from W` | Settle a question after its check time with the earliest Chainlink price after it (anyone may) | 0 |
+| `void <id> --from W` | Void a question no price could settle within 30 days of its check time (anyone may; it counts for no one) | 0 |
+| `pattest --from W` | Add settled answers to the lifetime prediction score in ERC-8004 (tag `prediction-accuracy`), using the agent linked with `rep-link` | 0 |
 | `abi` | Contract addresses and function list | – |
 
 ## Ask the crowd (for agents)
@@ -84,13 +85,13 @@ When the user (or you) is about to interact with an unfamiliar contract, run `ch
 
 ## Crowd reputation (ERC-8004)
 
-CrowdScore turns a voting record into an ERC-8004 reputation entry: how often this Agent ID voted for the crowd's final answer. A poll counts once it has closed with at least 5 voters and one clear top answer. Polls are scored in order from where the last score ended, so nobody can pick only the polls they got right. Run `rep` for the user's own wallet only, never to look someone up. Link once with `rep-link`, then `rep-attest` whenever new polls have closed. Both send no BNB and still go through preview and the user's yes.
+CrowdScore (v2) turns a voting record into ONE live ERC-8004 reputation entry per person: the lifetime share of decided polls where this Agent ID voted for the crowd's final answer. A poll counts once it has closed with at least 5 voters and one clear top answer. Polls are added in order from where the last update stopped, so nobody can pick only the polls they got right. Each update revokes the previous entry and writes the new lifetime value, so splitting updates cannot inflate a score. Run `rep` for the user's own wallet only, never to look someone up. Link once with `rep-link`, then `rep-attest` whenever new polls have closed. Both send no BNB and still go through preview and the user's yes.
 
-Reading these scores elsewhere: each entry covers a batch of polls, and the batch size is chosen by whoever attests. A plain average of entries can therefore overweight small batches. For an honest number, add up `counted` and `matched` from CrowdScore's `Attested` events (`counted` and `correct` for Predictions), or count from the votes themselves, as showofhands.io does. `rep-attest` and `pattest` always score every closed poll they can in one batch.
+Reading these scores elsewhere: call the registry's `getSummary(agentId, [CrowdScore], "crowd-accuracy", "showofhands")` (or the Predictions address with "prediction-accuracy"). Revoked entries are skipped, so there is one value per person. `scoreOf(voice)` on either contract gives the raw (counted, hits). The v1 contracts (0x1a91…cff3 and 0x77a2…6c8a) added one entry per batch; ignore them or weight them by `counted` from their `Attested` events.
 
 ## Price predictions (settled on-chain)
 
-"Will BNB/USD be above $X at time T?" Voting closes at least an hour before T. After T, anyone may run `settle`: the contract only accepts the first Chainlink price at or after T, so nobody can pick the answer. Points in the League: 1 per answer, 3 more when the price proves the answer right. These are not trades and involve no money. Never present the crowd's lean as financial advice, and never move the user's funds based on it.
+"Will BNB/USD be above $X at time T?" Voting closes at least an hour before T. After T, anyone may run `settle`: the contract only accepts the earliest Chainlink price at or after T (checked across Chainlink feed upgrades too), so nobody can pick the answer. A late feed still settles it; a question no price reaches within 30 days can be voided with `void`. Points in the League: 1 per answer, 3 more when the price proves the answer right. These are not trades and involve no money. Never present the crowd's lean as financial advice, and never move the user's funds based on it.
 
 ## Error table
 

@@ -2,7 +2,7 @@
 // No keys, no writes, no user data. Reads the Polls contract on BNB Smart Chain and adds a verdict.
 import { CONFIG } from "../../config.js";
 import { verdict, DEFAULT_QUORUM } from "../../lib/verdict.js";
-import { getIndex, league, events, today, checksFor, recentChecks, predictionsList, crowdRecord, ASSETS, fmtUsd } from "../../lib/chainindex.mjs";
+import { getIndex, league, events, today, checksFor, recentChecks, predictionsList, crowdRecord, ASSETS, fmtUsd, providerHealth, probePrivate } from "../../lib/chainindex.mjs";
 import { isAddress } from "../../lib/check.js";
 
 const RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
@@ -85,6 +85,11 @@ export default async (req) => {
   if (!Number.isInteger(quorum) || quorum < 1 || quorum > 100000) return json(400, { error: "quorum must be a whole number from 1 to 100000" });
 
   try {
+    if (path === "/api/health") {
+      const t = Date.now(), idx = await getIndex({ fresh: 0 });
+      return json(200, { ok: true, ms: Date.now() - t, lastBlock: idx.lastBlock, head: idx.head, syncing: idx.syncing,
+        auditOk: idx.auditOk ?? null, privateRangeProbe: await probePrivate(), ...providerHealth() });
+    }
     if (path === "/api/verdict") {
       const raw = url.searchParams.get("poll") ?? "latest";
       const count = await pollCount();
@@ -163,4 +168,4 @@ export default async (req) => {
   }
 };
 
-export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league", "/api/today", "/api/check", "/api/predictions"] };
+export const config = { path: ["/api", "/api/verdict", "/api/polls", "/api/events", "/api/league", "/api/today", "/api/check", "/api/predictions", "/api/health"] };

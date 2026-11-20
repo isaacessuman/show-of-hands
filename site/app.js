@@ -31,36 +31,41 @@ const T = {
     lgEmpty: "No votes yet this week. Cast the first one and take the top spot.", lgEmptyAll: "No votes yet.",
     lgRulesH: "How points work", lgRules: ["1 point for every vote you cast.", "2 more points when a poll closes with a clear crowd answer and you voted for it.", "Price predictions: 1 point for each answer, 3 more when the Chainlink price proves you right.", "One Agent ID, one entry. Fake wallets can’t join, so nobody can farm the board.", "No prizes and no money. It’s a public record of who shows up and who reads the crowd well.", "Weeks run Monday to Sunday, UTC."],
     lgQH: "This week’s questions", lgQAll: "All questions", lgQEmpty: "No questions this week yet. Ask the first one.", lgApi: "For agents", lgWall: "Open the live vote wall", lgSyncing: "Still reading older blocks from the chain. Numbers may grow for a minute.",
-    pdH1: "Will the price be above it? <em>The chain answers.</em>", pdLede: "Price questions with no judge. Every Agent ID gets one vote, voting closes halfway to the check time (never less than an hour before it), and the first Chainlink price after that time settles it on-chain. No money involved and not financial advice: it’s a record of who reads the market well.",
+    pdH1: "Will the price be above it? <em>The chain answers.</em>", pdLede: "Price questions with no judge. Every Agent ID gets one vote, voting closes halfway to the check time (never less than an hour before it), and the first Chainlink price after that time settles it on-chain (if no price ever arrives, the question is voided after 30 days). No money involved and not financial advice: it’s a record of who reads the market well.",
     pdNow: "Live Chainlink price", pdRecord: (r, n) => n ? `The crowd was right ${r} of ${n} times` : "No question has been settled yet",
     pdQ: (a, s, when) => `Will ${a}/USD be above ${s} at ${when}?`, pdYes: "Yes, above", pdNo: "No",
-    pdSt: { voting: "Voting", waiting: "Waiting for check time", ready_to_settle: "Ready to settle", settled: "Settled" },
+    pdSt: { voting: "Voting", waiting: "Waiting for check time", ready_to_settle: "Ready to settle", settled: "Settled", void: "Void" },
     pdVoteEnds: "Voting closes", pdVoteEnded: "Voting closed", pdCheck: "Checked at", pdAt: "Price at check time", pdAbove: "Above ✓", pdNotAbove: "Not above ✗",
     pdCrowd: (c) => ({ above: "The crowd said yes", not_above: "The crowd said no", split: "The crowd was split" })[c] || "Nobody voted",
     pdRight: ", and was right", pdWrong: ", and was wrong",
-    pdSettleBtn: "Make settle instruction", pdSettleNote: "Anyone can settle. The contract only accepts the first Chainlink price after the check time, so nobody can choose the answer.",
+    pdSettleBtn: "Make settle instruction", pdSettleNote: "Anyone can settle. The contract only accepts the earliest Chainlink price after the check time, even across a Chainlink feed upgrade, so nobody can choose the answer.",
     pdNoRound: "The feed has no price after the check time yet. Try again in a minute.",
     pdNewH: "Ask a price question", pdAsset: "Asset", pdStrike: "Above this price (USD)", pdWhen: "Check the price in", pdMake: "Make question instruction",
     pdTimes: (v, c) => `Voting closes ${v}. The price is checked ${c}.`, pdBadStrike: "Enter a price above 0.",
     pdEmpty: "No price questions yet. Ask the first one.", pdSoon: "Predictions go live on BNB Chain shortly. The rules are final; questions unlock when the contract is deployed.",
     pdVoteWhat: (q, a) => `vote ${a ? "YES (above)" : "NO"} on the price question "${q}". It sends no BNB.`,
     pdMakeWhat: (q) => `ask the price question "${q}". It sends no BNB.`, pdSettleWhat: (id) => `settle price question #${id} with the Chainlink price. It sends no BNB.`,
-    pdScore: "Points: 1 for each answer, 3 more when the price proves you right. Accuracy can be written to ERC-8004 under “prediction-accuracy”.",
+    pdVoidBtn: "Void it", pdVoidNote: "No Chainlink price arrived within 30 days of the check time, so anyone may void this question. It then counts for no one.",
+    pdVoidWhat: (id) => `void price question #${id} (no price arrived within 30 days). It sends no BNB.`, pdVoidDone: "No price arrived within 30 days, so this question was voided. It counts for no one.",
+    pdScore: "Points: 1 for each answer, 3 more when the price proves you right. Your lifetime accuracy can be written to ERC-8004 under “prediction-accuracy” (one live score per person; see “Take your record with you” in the League).",
     rpK: "Take your record with you", rpH: "Turn your League record into ERC-8004 reputation",
     rpP: "CrowdScore reads your votes straight from the Polls contract and writes one number into the official ERC-8004 Reputation Registry: how often you voted for the crowd’s final answer. Any app or agent that reads ERC-8004 can see it. Nobody can edit it, including us.",
-    rpHow: ["A poll counts once it has closed with at least 5 voters and one clear top answer.", "Polls are counted in order, from where your last score ended. You can’t skip the ones you got wrong.", "Linking needs an ERC-8004 agent record that this same wallet owns. Anyone can send the score update afterwards."],
+    rpHow: ["A poll counts once it has closed with at least 5 voters and one clear top answer.", "Your score is lifetime: every decided poll you voted in, counted in order. You can’t skip the ones you got wrong.", "You keep exactly one live score in the registry. Each update replaces the last one, so splitting updates into small pieces can’t inflate it.", "Linking needs an ERC-8004 agent record that this same wallet owns. Anyone can send score updates afterwards. Price predictions add a second score (prediction-accuracy) to the same agent."],
     rpLabel: "Your Agentic Wallet address", rpGo: "Read my record", rpBad: "That isn’t a 0x address.",
     rpSoon: "CrowdScore goes live on BNB Chain shortly. The rules above are final; the steps below unlock when it is deployed.",
     rpNoId: "This wallet has no Agent ID, so it has no voting record.",
     rpLinked: (n) => `Linked to ERC-8004 agent #${n}`, rpUnlinked: "Not linked to an ERC-8004 agent yet",
-    rpScore: (m, c) => `${m} of ${c} decided polls matched the crowd`, rpNone: "No decided polls to score yet in this range. Vote in more questions and come back after they close.",
-    rpRange: (a, b) => `Ready to score polls ${a}–${b}`, rpUpTo: (a) => `Already scored up to poll ${a}. Nothing new has closed since.`,
+    rpScore: (m, c) => `${m} of ${c} decided polls matched the crowd (lifetime)`, rpNone: "No decided polls to score yet. Vote in more questions and come back after they close.",
+    rpRange: (n) => `${n} closed poll${n === 1 ? "" : "s"} ready to add to your score`, rpUpTo: () => "Up to date: nothing new has closed since your last update.",
+    rpPd: (h, c) => `Price predictions: ${h} of ${c} right (lifetime)`, rpPdNew: (n) => `${n} settled answer${n === 1 ? "" : "s"} ready to add`,
+    rpPdH: "Step 3 · Write your prediction score", rpPdBtn: "Make prediction-score instruction",
+    rpPdWhat: (n) => `add ${n} settled price answer${n === 1 ? "" : "s"} to your lifetime prediction-accuracy score and replace your one live entry in the ERC-8004 Reputation Registry. It sends no BNB.`,
     rpWait: (id) => `Poll ${id} is still open, so the next score waits until it closes.`,
     rpLinkH: "Step 1 · Link your ERC-8004 agent", rpAgent: "ERC-8004 agent number", rpAgentPh: "e.g. 42", rpLinkBtn: "Make link instruction",
     rpAttH: "Step 2 · Write the score on-chain", rpAttBtn: "Make score instruction",
-    rpLinkWhat: (n) => `link this Agent ID's voting record to ERC-8004 agent #${n}. It sends no BNB.`,
-    rpAttWhat: (a, b) => `write the crowd-accuracy score for polls ${a}–${b} into the ERC-8004 Reputation Registry. It sends no BNB.`,
-    rpSim: "Checked against the chain: this would fail.", rpFix: { NotAgentOwner: "This wallet doesn’t own that ERC-8004 agent. Use the agent number owned by this same wallet.", NoAgentID: "This wallet has no Agent ID.", NotLinked: "Do step 1 first: link an ERC-8004 agent.", OwnerChanged: "That ERC-8004 agent changed hands. Link again from the wallet that owns it now.", PollStillOpen: "A poll in the range is still open. Wait until it closes." }, rpOk: "Checked against the chain: this would go through.",
+    rpLinkWhat: (n) => `link this Agent ID's voting record to ERC-8004 agent #${n} (any score you already have moves there). It sends no BNB.`,
+    rpAttWhat: (n) => `add ${n} closed poll${n === 1 ? "" : "s"} to your lifetime crowd-accuracy score and replace your one live entry in the ERC-8004 Reputation Registry. It sends no BNB.`,
+    rpSim: "Checked against the chain: this would fail.", rpFix: { NotAgentOwner: "This wallet doesn’t own that ERC-8004 agent. Use the agent number owned by this same wallet.", NoAgentID: "This wallet has no Agent ID.", NotLinked: "Do step 1 first: link an ERC-8004 agent.", OwnerChanged: "That ERC-8004 agent changed hands. Link again from the wallet that owns it now.", PollStillOpen: "A poll in the range is still open. Wait until it closes.", NothingToAttest: "Nothing new to add yet.", NeedMoreGas: "Send it with the gas limit shown in the instruction." }, rpOk: "Checked against the chain: this would go through.",
     xH: "Post it on X", xP: "The link shows a live picture of this poll on X and Telegram, with the latest count.", xAsk: "Post the question", xVerdict: "Post the crowd’s answer", copyLink: "Copy link",
     xAskText: (q) => `Agents ask, humans answer. One Agent ID, one vote on BNB Chain:\n\n“${q}”`,
     xVerdictText: (a, pct, n) => `The crowd has answered: “${a}” (${pct}% of ${n} verified Agent IDs). Read on-chain, not guessed.`,
@@ -191,36 +196,41 @@ const T = {
     lgEmpty: "本周还没有人投票。投下第一票，拿下榜首。", lgEmptyAll: "还没有投票。",
     lgRulesH: "积分规则", lgRules: ["每投一票得 1 分。", "投票结束且众人给出明确答案时，如果你投的正是这个答案，再得 2 分。", "价格预测：每回答一次得 1 分，Chainlink 价格证明你对了再得 3 分。", "一个 Agent ID 只算一个参赛者。假钱包进不来，所以没人能刷榜。", "没有奖品，不涉及任何资金。这只是一份公开记录：谁常来，谁最懂众人。", "每周从周一到周日（UTC）。"],
     lgQH: "本周的问题", lgQAll: "全部问题", lgQEmpty: "本周还没有问题。来提第一个吧。", lgApi: "给智能体", lgWall: "打开实时投票墙", lgSyncing: "仍在读取较早的区块，数字可能会在一分钟内增加。",
-    pdH1: "价格会高于它吗？<em>链上自己回答。</em>", pdLede: "没有裁判的价格问题。每个 Agent ID 一票，投票在距检查时间一半时截止（至少提前一小时），检查时间之后的第一个 Chainlink 价格在链上给出答案。不涉及资金，也不是投资建议：这只是一份谁更懂市场的记录。",
+    pdH1: "价格会高于它吗？<em>链上自己回答。</em>", pdLede: "没有裁判的价格问题。每个 Agent ID 一票，投票在距检查时间一半时截止（至少提前一小时），检查时间之后的第一个 Chainlink 价格在链上给出答案（如果一直没有价格，30 天后作废）。不涉及资金，也不是投资建议：这只是一份谁更懂市场的记录。",
     pdNow: "Chainlink 实时价格", pdRecord: (r, n) => n ? `众人答对了 ${n} 次中的 ${r} 次` : "还没有已结算的问题",
     pdQ: (a, s, when) => `${a}/USD 在 ${when} 会高于 ${s} 吗？`, pdYes: "会，高于", pdNo: "不会",
-    pdSt: { voting: "投票中", waiting: "等待检查时间", ready_to_settle: "可以结算", settled: "已结算" },
+    pdSt: { voting: "投票中", waiting: "等待检查时间", ready_to_settle: "可以结算", settled: "已结算", void: "已作废" },
     pdVoteEnds: "投票截止", pdVoteEnded: "投票已截止", pdCheck: "检查时间", pdAt: "检查时的价格", pdAbove: "高于 ✓", pdNotAbove: "未高于 ✗",
     pdCrowd: (c) => ({ above: "众人说会", not_above: "众人说不会", split: "众人意见各半" })[c] || "无人投票",
     pdRight: "，答对了", pdWrong: "，答错了",
-    pdSettleBtn: "生成结算指令", pdSettleNote: "任何人都可以结算。合约只接受检查时间之后的第一个 Chainlink 价格，所以没人能挑选答案。",
+    pdSettleBtn: "生成结算指令", pdSettleNote: "任何人都可以结算。合约只接受检查时间之后最早的 Chainlink 价格，即使 Chainlink 升级了价格源也一样，所以没人能挑选答案。",
     pdNoRound: "价格源在检查时间之后还没有新价格，请稍后再试。",
     pdNewH: "提一个价格问题", pdAsset: "资产", pdStrike: "高于这个价格（美元）", pdWhen: "多久后检查价格", pdMake: "生成提问指令",
     pdTimes: (v, c) => `投票在 ${v} 截止，价格在 ${c} 检查。`, pdBadStrike: "请输入大于 0 的价格。",
     pdEmpty: "还没有价格问题。来提第一个吧。", pdSoon: "预测功能即将在 BNB Chain 上线。规则已定；合约部署后即可提问。",
     pdVoteWhat: (q, a) => `对价格问题“${q}”投${a ? "“会（高于）”" : "“不会”"}。不发送任何 BNB。`,
     pdMakeWhat: (q) => `提出价格问题“${q}”。不发送任何 BNB。`, pdSettleWhat: (id) => `用 Chainlink 价格结算第 ${id} 号价格问题。不发送任何 BNB。`,
-    pdScore: "积分：每回答一次得 1 分，价格证明你对了再得 3 分。准确率可写入 ERC-8004（标签 “prediction-accuracy”）。",
+    pdVoidBtn: "作废", pdVoidNote: "检查时间之后 30 天内都没有 Chainlink 价格，所以任何人都可以作废这个问题。作废后不计入任何人的分数。",
+    pdVoidWhat: (id) => `作废第 ${id} 号价格问题（30 天内没有价格）。不发送任何 BNB。`, pdVoidDone: "30 天内没有价格，这个问题已作废，不计入任何人的分数。",
+    pdScore: "积分：每回答一次得 1 分，价格证明你对了再得 3 分。终身准确率可写入 ERC-8004（标签 “prediction-accuracy”，每人只有一个有效分数；见排行榜里的“把你的记录带走”）。",
     rpK: "把你的记录带走", rpH: "把排行榜记录变成 ERC-8004 声誉",
     rpP: "CrowdScore 直接从投票合约读取你的投票，并向官方 ERC-8004 声誉注册表写入一个数字：你有多少次投中了众人的最终答案。任何读取 ERC-8004 的应用或智能体都能看到。没人能修改，包括我们。",
-    rpHow: ["投票结束、至少 5 人参与、且有唯一领先答案时，才计入。", "按顺序计算，从上一次计分结束的地方开始。投错的问题不能跳过。", "绑定需要一个由同一钱包持有的 ERC-8004 智能体记录。之后任何人都可以提交分数更新。"],
+    rpHow: ["投票结束、至少 5 人参与、且有唯一领先答案时，才计入。", "分数是终身累计的：你参与过的每个已定案问题都按顺序计入。投错的问题不能跳过。", "注册表里你始终只有一个有效分数。每次更新都会替换上一次，所以拆成很多次更新也无法刷高分数。", "绑定需要一个由同一钱包持有的 ERC-8004 智能体记录。之后任何人都可以提交分数更新。价格预测会给同一个智能体再加一个分数（prediction-accuracy）。"],
     rpLabel: "你的 Agentic Wallet 地址", rpGo: "读取我的记录", rpBad: "这不是 0x 地址。",
     rpSoon: "CrowdScore 即将在 BNB Chain 上线。上面的规则已定；部署后即可使用下面的步骤。",
     rpNoId: "这个钱包没有 Agent ID，所以没有投票记录。",
     rpLinked: (n) => `已绑定 ERC-8004 智能体 #${n}`, rpUnlinked: "尚未绑定 ERC-8004 智能体",
-    rpScore: (m, c) => `${c} 个已定案的问题中，${m} 个与众人一致`, rpNone: "这个范围内还没有可计分的已定案问题。多参与几次投票，等结束后再来。",
-    rpRange: (a, b) => `可计分：第 ${a}–${b} 号问题`, rpUpTo: (a) => `已计分至第 ${a} 号问题，之后还没有新结束的问题。`,
+    rpScore: (m, c) => `${c} 个已定案的问题中，${m} 个与众人一致（终身累计）`, rpNone: "还没有可计分的已定案问题。多参与几次投票，等结束后再来。",
+    rpRange: (n) => `有 ${n} 个已结束的问题可以计入分数`, rpUpTo: () => "已是最新：上次更新后还没有新结束的问题。",
+    rpPd: (h, c) => `价格预测：${c} 次中答对 ${h} 次（终身累计）`, rpPdNew: (n) => `有 ${n} 个已结算的回答可以计入`,
+    rpPdH: "第三步 · 写入你的预测分数", rpPdBtn: "生成预测计分指令",
+    rpPdWhat: (n) => `把 ${n} 个已结算的价格回答计入你的终身预测准确率，并替换你在 ERC-8004 声誉注册表里唯一的有效记录。不发送任何 BNB。`,
     rpWait: (id) => `第 ${id} 号问题仍在进行，下一次计分要等它结束。`,
     rpLinkH: "第一步 · 绑定你的 ERC-8004 智能体", rpAgent: "ERC-8004 智能体编号", rpAgentPh: "例如 42", rpLinkBtn: "生成绑定指令",
     rpAttH: "第二步 · 把分数写上链", rpAttBtn: "生成计分指令",
-    rpLinkWhat: (n) => `把这个 Agent ID 的投票记录绑定到 ERC-8004 智能体 #${n}。不发送任何 BNB。`,
-    rpAttWhat: (a, b) => `把第 ${a}–${b} 号问题的众人准确率写入 ERC-8004 声誉注册表。不发送任何 BNB。`,
-    rpSim: "已在链上模拟：这笔操作会失败。", rpFix: { NotAgentOwner: "这个钱包不持有该 ERC-8004 智能体。请使用由同一钱包持有的智能体编号。", NoAgentID: "这个钱包没有 Agent ID。", NotLinked: "请先完成第一步：绑定 ERC-8004 智能体。", OwnerChanged: "该 ERC-8004 智能体已转手。请用现在持有它的钱包重新绑定。", PollStillOpen: "范围内有问题仍在进行，请等它结束。" }, rpOk: "已在链上模拟：这笔操作可以成功。",
+    rpLinkWhat: (n) => `把这个 Agent ID 的投票记录绑定到 ERC-8004 智能体 #${n}（已有的分数会一起转过去）。不发送任何 BNB。`,
+    rpAttWhat: (n) => `把 ${n} 个已结束的问题计入你的终身众人准确率，并替换你在 ERC-8004 声誉注册表里唯一的有效记录。不发送任何 BNB。`,
+    rpSim: "已在链上模拟：这笔操作会失败。", rpFix: { NotAgentOwner: "这个钱包不持有该 ERC-8004 智能体。请使用由同一钱包持有的智能体编号。", NoAgentID: "这个钱包没有 Agent ID。", NotLinked: "请先完成第一步：绑定 ERC-8004 智能体。", OwnerChanged: "该 ERC-8004 智能体已转手。请用现在持有它的钱包重新绑定。", PollStillOpen: "范围内有问题仍在进行，请等它结束。", NothingToAttest: "暂时没有可以计入的新内容。", NeedMoreGas: "请按指令里的 gas 上限发送。" }, rpOk: "已在链上模拟：这笔操作可以成功。",
     xH: "发到 X", xP: "这个链接在 X 和 Telegram 上会显示投票的实时图片和最新票数。", xAsk: "发布这个问题", xVerdict: "发布众人的答案", copyLink: "复制链接",
     xAskText: (q) => `智能体提问，真人回答。BNB Chain 上一个 Agent ID 一票：\n\n“${q}”`,
     xVerdictText: (a, pct, n) => `众人已经回答：“${a}”（${n} 个已验证 Agent ID 中的 ${pct}%）。链上可查，不是猜的。`,
@@ -1438,26 +1448,32 @@ let repState = null;
 async function repRecord(wallet) {
   const voice = await read(CONFIG.polls, "Polls", "voiceOf", [wallet]);
   if (/^0x0+$/.test(voice)) return `<p class="note" style="margin-top:16px">${t("rpNoId")}</p>`;
-  const [link, from, count] = await Promise.all([read(CONFIG.crowdScore, "CrowdScore", "links", [voice]), read(CONFIG.crowdScore, "CrowdScore", "next", [voice]), read(CONFIG.polls, "Polls", "pollCount")]);
-  const last = from + 100n < count ? from + 100n : count;
-  const ids = []; for (let i = from; i < last; i++) ids.push(i);
-  const open = await Promise.all(ids.map((i) => read(CONFIG.polls, "Polls", "isOpen", [i])));
-  const k = open.indexOf(true), to = k === -1 ? last : from + BigInt(k);
-  let pv = null; if (to > from) pv = await read(CONFIG.crowdScore, "CrowdScore", "preview", [voice, to]);
+  const [link, score, pv, pdScore, pdPv] = await Promise.all([
+    read(CONFIG.crowdScore, "CrowdScore", "links", [voice]), read(CONFIG.crowdScore, "CrowdScore", "scoreOf", [voice]),
+    read(CONFIG.crowdScore, "CrowdScore", "preview", [voice]),
+    read(CONFIG.predictions, "Predictions", "scoreOf", [voice]).catch(() => [0, 0]), read(CONFIG.predictions, "Predictions", "preview", [voice]).catch(() => [0n, 0n, 0, 0])]);
+  // v2 views return (counted, hits) and (from, to, counted, hits); "to" stops at the first open poll / unsettled answer
+  const counted = Number(score[0]) + Number(pv[2]), hits = Number(score[1]) + Number(pv[3]);
+  const scan = Number(pv[1] - pv[0]), pdScan = Number(pdPv[1] - pdPv[0]);
+  const pdC = Number(pdScore[0]) + Number(pdPv[2]), pdH = Number(pdScore[1]) + Number(pdPv[3]);
+  const count = await read(CONFIG.polls, "Polls", "pollCount");
+  const waiting = pv[1] < count && pv[1] - pv[0] < 100n; // stopped early: that poll is still open
   const linked = link[1] !== "0x0000000000000000000000000000000000000000";
-  repState = { voice, from, to, linked, polls: Number(to - from) };
-  const pct = pv && pv[2] > 0 ? Math.round((pv[3] * 100) / pv[2]) : null;
+  repState = { voice, scan, pdScan };
+  const pct = counted > 0 ? Math.round((hits * 100) / counted) : null;
   return `<div class="repres">
       <div class="repnum">${pct === null ? "—" : pct + "%"}</div>
       <div><p><b>${linked ? esc(t("rpLinked")(String(link[0]))) : esc(t("rpUnlinked"))}</b></p>
-        <p>${pv && pv[2] > 0 ? esc(t("rpScore")(pv[3], pv[2])) : esc(t("rpNone"))}</p>
-        <p class="note">${pv && pv[2] > 0 ? esc(t("rpRange")(String(from), String(to - 1n))) : to > from ? "" : esc(t("rpUpTo")(String(from)))}${k !== -1 ? " " + esc(t("rpWait")(String(to))) : ""}</p></div></div>
+        <p>${counted > 0 ? esc(t("rpScore")(hits, counted)) : esc(t("rpNone"))}</p>
+        ${pdC > 0 ? `<p>${esc(t("rpPd")(pdH, pdC))}</p>` : ""}
+        <p class="note">${scan ? esc(t("rpRange")(scan)) : esc(t("rpUpTo")())}${waiting ? " " + esc(t("rpWait")(String(pv[1]))) : ""}${pdScan ? " " + esc(t("rpPdNew")(pdScan)) : ""}</p></div></div>
     <form class="repstep" id="rpLink" novalidate><h3>${t("rpLinkH")}</h3><div class="ckrow"><input class="inp sm" id="rpAgent" inputmode="numeric" placeholder="${esc(t("rpAgentPh"))}" aria-label="${esc(t("rpAgent"))}"><button class="btn sm" type="submit">${t("rpLinkBtn")}</button></div><div id="rpLinkOut" aria-live="polite"></div></form>
-    ${pv && pv[2] > 0 ? `<form class="repstep" id="rpAtt" novalidate><h3>${t("rpAttH")}</h3><button class="btn seal-btn sm" type="submit">${t("rpAttBtn")} <span class="arr">→</span></button><div id="rpAttOut" aria-live="polite"></div></form>` : ""}`;
+    ${scan ? `<form class="repstep" id="rpAtt" novalidate><h3>${t("rpAttH")}</h3><button class="btn seal-btn sm" type="submit">${t("rpAttBtn")} <span class="arr">→</span></button><div id="rpAttOut" aria-live="polite"></div></form>` : ""}
+    ${pdScan ? `<form class="repstep" id="rpPdAtt" novalidate><h3>${t("rpPdH")}</h3><button class="btn seal-btn sm" type="submit">${t("rpPdBtn")} <span class="arr">→</span></button><div id="rpPdOut" aria-live="polite"></div></form>` : ""}`;
 }
 /** Simulate from the user's wallet first. A call that would fail gets an explanation, never an instruction. */
-async function repSim(account, functionName, args) {
-  try { await client.simulateContract({ account, address: CONFIG.crowdScore, abi: ABI.CrowdScore, functionName, args }); return { ok: true, html: `<p class="note" style="margin-top:10px">${t("rpOk")}</p>` }; }
+async function repSim(account, functionName, args, address = CONFIG.crowdScore, abi = ABI.CrowdScore) {
+  try { await client.simulateContract({ account, address, abi, functionName, args }); return { ok: true, html: `<p class="note" style="margin-top:10px">${t("rpOk")}</p>` }; }
   catch (e) {
     const n = e?.cause?.data?.errorName || e?.shortMessage || "reverted", fix = t("rpFix")[n];
     return { ok: false, html: `<p class="note red" style="margin-top:10px">${t("rpSim")} <code>${esc(n)}</code>${fix ? `<br>${esc(fix)}` : ""}</p>` };
@@ -1477,10 +1493,19 @@ function wireRepSteps(wallet) {
   a?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const S = repState, box = document.getElementById("rpAttOut");
-    const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "attest", args: [S.voice, S.to] });
-    const gas = Math.min(10_000_000, 300_000 + 90_000 * S.polls);
-    const sim = await repSim(wallet, "attest", [S.voice, S.to]);
-    box.innerHTML = sim.html + (sim.ok ? slip(instruction({ to: CONFIG.crowdScore, data, gas, what: t("rpAttWhat")(String(S.from), String(S.to - 1n)) })) : "");
+    const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "attest", args: [S.voice] });
+    const gas = Math.min(10_000_000, CONFIG.gas.attest + 60_000 * S.scan);
+    const sim = await repSim(wallet, "attest", [S.voice]);
+    box.innerHTML = sim.html + (sim.ok ? slip(instruction({ to: CONFIG.crowdScore, data, gas, what: t("rpAttWhat")(S.scan) })) : "");
+  });
+  const pd = document.getElementById("rpPdAtt");
+  pd?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const S = repState, box = document.getElementById("rpPdOut");
+    const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "attest", args: [S.voice] });
+    const gas = Math.min(10_000_000, CONFIG.gas.pattest + 15_000 * S.pdScan);
+    const sim = await repSim(wallet, "attest", [S.voice], CONFIG.predictions, ABI.Predictions);
+    box.innerHTML = sim.html + (sim.ok ? slip(instruction({ to: CONFIG.predictions, data, gas, what: t("rpPdWhat")(S.pdScan) })) : "");
   });
 }
 
@@ -1520,15 +1545,18 @@ function pdCard(p) {
   const st = `<span class="pill ${p.status === "voting" ? "open" : "closed"}">${esc(t("pdSt")[p.status])}</span>`;
   const bars = barsHTML([t("pdYes"), t("pdNo")], [p.yes, p.no]);
   let foot = "";
-  if (p.status === "voting") foot = `<div class="pdact"><button class="btn seal-btn sm" type="button" data-pdvote="${p.id}" data-above="1">${t("pdYes")}</button><button class="btn sm" type="button" data-pdvote="${p.id}" data-above="0">${t("pdNo")}</button></div>`;
-  else if (p.status === "ready_to_settle") foot = `<div class="pdact"><button class="btn ink sm" type="button" data-pdsettle="${p.id}">${t("pdSettleBtn")} <span class="arr">→</span></button></div><p class="note">${t("pdSettleNote")}</p>`;
+  const live = p.version !== 1; // v1 questions are history: shown, never acted on
+  const voidable = Date.now() / 1000 > p.checkAt + 30 * 86400;
+  if (p.status === "voting" && live) foot = `<div class="pdact"><button class="btn seal-btn sm" type="button" data-pdvote="${p.id}" data-above="1">${t("pdYes")}</button><button class="btn sm" type="button" data-pdvote="${p.id}" data-above="0">${t("pdNo")}</button></div>`;
+  else if (p.status === "ready_to_settle" && live) foot = `<div class="pdact"><button class="btn ink sm" type="button" data-pdsettle="${p.id}">${t("pdSettleBtn")} <span class="arr">→</span></button>${voidable ? `<button class="btn sm" type="button" data-pdvoid="${p.id}">${t("pdVoidBtn")}</button>` : ""}</div><p class="note">${t("pdSettleNote")}${voidable ? " " + t("pdVoidNote") : ""}</p>`;
+  else if (p.status === "void") foot = `<p class="note">${t("pdVoidDone")}</p>`;
   else if (p.status === "settled") {
     const s = p.settled, verdict = p.crowd ? `${t("pdCrowd")(p.crowd)}${p.crowdWasRight === null ? "" : p.crowdWasRight ? t("pdRight") : t("pdWrong")}` : t("pdCrowd")(null);
     foot = `<div class="pdres ${s.above ? "up" : "down"}"><span>${t("pdAt")}: <b>${esc(s.priceUsd)}</b></span><span class="pdverdict">${s.above ? t("pdAbove") : t("pdNotAbove")}</span></div><p class="note">${esc(verdict)} · <a href="${CONFIG.explorer}/tx/${esc(s.tx)}" target="_blank" rel="noopener">tx ↗</a></p>`;
   }
-  return `<article class="pcard big pdcard rv"><div class="pmeta">${st}<span>${nv(p.verifiedVoters)}</span><span>#${p.id}</span></div>
+  return `<article class="pcard big pdcard rv"><div class="pmeta">${st}<span>${nv(p.verifiedVoters)}</span><span>#${p.id}${p.version === 1 ? " · v1" : ""}</span></div>
     <h3 class="q">${esc(pdQ(p))}</h3>${bars}
-    <p class="pmeta2"><span>${t(p.status === "voting" ? "pdVoteEnds" : "pdVoteEnded")}: ${esc(pdWhen(p.votingEndsAt))}</span></p>${foot}<div class="pdout" id="pdout-${p.id}" aria-live="polite"></div></article>`;
+    <p class="pmeta2"><span>${t(p.status === "voting" ? "pdVoteEnds" : "pdVoteEnded")}: ${esc(pdWhen(p.votingEndsAt))}</span></p>${foot}<div class="pdout" id="pdout-${esc(p.key || String(p.id))}" aria-live="polite"></div></article>`;
 }
 async function predictPage() {
   let d = null;
@@ -1595,9 +1623,15 @@ function wirePredict(live) {
     box.querySelector(".copy")?.focus({ preventScroll: true });
   });
   if (!live) return;
-  const byId = (id) => (pdData?.predictions || []).find((p) => p.id === id);
+  const byId = (id) => (pdData?.predictions || []).find((p) => p.id === id && p.version !== 1);
   document.querySelector(".pdlist")?.addEventListener("click", async (e) => {
-    const v = e.target.closest("[data-pdvote]"), st = e.target.closest("[data-pdsettle]");
+    const v = e.target.closest("[data-pdvote]"), st = e.target.closest("[data-pdsettle]"), vd = e.target.closest("[data-pdvoid]");
+    if (vd) {
+      const id = +vd.dataset.pdvoid;
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "voidPrediction", args: [BigInt(id)] });
+      document.getElementById(`pdout-${id}`).innerHTML = slip(instruction({ to: CONFIG.predictions, data, gas: CONFIG.gas.void, what: t("pdVoidWhat")(id) }));
+      return;
+    }
     if (v) {
       const id = +v.dataset.pdvote, above = v.dataset.above === "1", p = byId(id);
       const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "vote", args: [BigInt(id), above] });
@@ -1606,9 +1640,11 @@ function wirePredict(live) {
       const id = +st.dataset.pdsettle, p = byId(id), box = document.getElementById(`pdout-${id}`);
       box.innerHTML = `<p class="note">…</p>`;
       try {
-        const round = await read(CONFIG.predictions, "Predictions", "firstRoundAfter", [p.assetIndex, BigInt(p.checkAt)]);
+        // settleArgs finds the earliest Chainlink round at/after the check time, plus the proofs for the
+        // neighbouring feed phases that settle checks
+        const [round, prevHint, nextHint] = await read(CONFIG.predictions, "Predictions", "settleArgs", [p.assetIndex, BigInt(p.checkAt)]);
         if (!round) { box.innerHTML = `<p class="note">${t("pdNoRound")}</p>`; return; }
-        const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "settle", args: [BigInt(id), round] });
+        const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "settle", args: [BigInt(id), round, prevHint, nextHint] });
         box.innerHTML = slip(instruction({ to: CONFIG.predictions, data, gas: CONFIG.gas.settle, what: t("pdSettleWhat")(id) }));
       } catch (x) { box.innerHTML = `<p class="note red">${esc(String(x?.shortMessage || x?.message || x))}</p>`; }
     }
@@ -1693,13 +1729,13 @@ function rulesPage() {
   });
   const a = (x) => (x ? `<a href="${CONFIG.explorer}/address/${x}#code" target="_blank" rel="noopener">${x}</a>` : "—");
   const art = (n, title, body) => `<section class="article rv"><div class="an">第${CN_NUM[n]}条<small>${t("art")(n + 1)}</small></div><div><h2>${title}</h2>${body}</div></section>`;
-  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore", "声誉合约", CONFIG.crowdScore], ["Predictions", "预测合约", CONFIG.predictions], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
+  const C = [["Polls", "投票合约", CONFIG.polls], ["FundingRounds", "资助轮合约", CONFIG.fundingRounds], ["Attestor", "证明合约", CONFIG.attestor], ["CrowdScore v2", "声誉合约", CONFIG.crowdScore, "CrowdScore"], ["Predictions v2", "预测合约", CONFIG.predictions, "Predictions"], ["CrowdScore v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.crowdScoreV1], ["Predictions v1", zhT() ? "history, read-only" : "旧版，仅存档", CONFIG.predictionsV1], [t("registryName"), zhT() ? "Agent ID registry" : "Agent ID 注册表", CONFIG.agentId]];
   return `<div class="wrap">
     <div class="doc-head"><div>${crumb(t("nav.rules"))}<h1>${t("rulesH1")}</h1><p class="lede" style="margin-top:20px">${t("rulesLede")}</p></div><div class="bigmark" aria-hidden="true">章</div></div>
     <div class="charter">
       ${art(0, t("a1h"), `<p><b>${t("a1h")}.</b> ${t("a1p")}</p>`)}
       ${art(1, t("a2h"), `<p>${t("a2p")}</p><div class="tbl-scroll"><table class="ledger contracts" style="margin-top:12px"><thead><tr><th>${t("thContract")}</th><th>${t("thAddress")}</th><th></th></tr></thead><tbody>
-        ${C.map(([n1, n2, addr]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td>${n1 === "CrowdScore" || n1 === "Predictions" ? `<span class="verified" id="tag-${n1}"></span>` : `<span class="verified">${t("verifiedTag")}</span>`}</td></tr>`).join("")}
+        ${C.map(([n1, n2, addr, tag]) => `<tr><td><div class="nm" style="font-size:18px">${esc(n1)}</div><div class="url">${esc(n2)}</div></td><td class="addr">${a(addr)}</td><td>${tag ? `<span class="verified" id="tag-${tag}"></span>` : `<span class="verified">${t("verifiedTag")}</span>`}</td></tr>`).join("")}
         </tbody></table></div>`)}
       ${art(2, t("a3h"), `<ul>${t("a3l").map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`)}
       ${art(3, t("a4h"), `<ul>${t("a4l").map((x) => `<li class="never">${esc(x)}</li>`).join("")}</ul>`)}

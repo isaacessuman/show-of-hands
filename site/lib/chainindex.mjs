@@ -17,6 +17,10 @@ const SEL_HANDLE = "0xc50a1514";
 const T_P_CREATED = "0x00e2bd71e6395a25edd9a178f5e4fe6a453c69c3c52ac713c02164a7fc1ba606";
 const T_P_VOTED = "0x688dfd3fd88e5640539068db8245befe5cc74cd43e2325472be60b376f9038d9";
 const T_P_SETTLED = "0xe0c594973eb8413677fe0cea05d779d4255f1b4387cf98b31b9b86990ff55686";
+const T_P_VOIDED = "0xa0add9b3f251e0c65ca063f300e2f04bc423f4b29b11f0149bd33d75f0160172"; // v2 only
+// Predictions v1 (history, read-only) and v2 (live) share event shapes. Index keys: "v1-<id>" and "<id>".
+const PRED_CONTRACTS = [[CONFIG.predictionsV1, 1], [CONFIG.predictions, 2]].filter(([a]) => a);
+const predKey = (ver, id) => (ver === 1 ? "v1-" + id : String(id));
 export const ASSETS = ["BNB", "BTC", "ETH"];
 const int256 = (w) => { const v = BigInt("0x" + w); return v >= 1n << 255n ? v - (1n << 256n) : v; };
 // Public log providers can silently answer [] for blocks that do hold events (seen on publicnode and pocket,
@@ -43,6 +47,22 @@ async function rpc(urls, method, params) {
 
 // Logs for one block range: ask every provider at once and merge the answers. Stop waiting once the first
 // (most reliable) provider and one other have answered, or after 5 s with whatever has arrived. None = throw.
+// Per-provider answer counts for this function instance, for /api/health. The private provider (BSC_RPC_URL) is
+// only ever named "private"; its URL (which holds the key) is never reported, and neither is any error text from it.
+const LOG_NAMES = LOG_RPCS.map((u) => (u === process.env.BSC_RPC_URL ? "private (BSC_RPC_URL)" : new URL(u).host));
+const logStats = LOG_RPCS.map(() => ({ ok: 0, empty: 0, failed: 0, lastError: "" }));
+// One full-size range (5,000 blocks around the first poll) asked of the private provider only, once per instance.
+let probe;
+export function probePrivate() {
+  const u = process.env.BSC_RPC_URL;
+  if (!u) return Promise.resolve({ probed: false });
+  return (probe ??= rpc1(u, "eth_getLogs", [{ address: CONFIG.polls, fromBlock: "0x" + START_BLOCK.toString(16), toBlock: "0x" + (START_BLOCK + CHUNK - 1).toString(16) }], 10000)
+    .then((v) => ({ probed: true, blocks: CHUNK, logs: v.length }))
+    .catch((e) => ({ probed: true, blocks: CHUNK, error: /range|limit|too (many|large)/i.test(e?.message || "") ? "range too large" : /timeout|abort/i.test(String(e?.name) + e?.message) ? "timeout" : "error" })));
+}
+export function providerHealth() {
+  return { privateRpcSet: !!process.env.BSC_RPC_URL, logProviders: LOG_NAMES.map((name, i) => ({ name, ...logStats[i] })) };
+}
 function getLogs(filter) {
   return new Promise((resolve, reject) => {
     const got = new Map(); let left = LOG_RPCS.length, firstIn = false, finished = false;
@@ -55,8 +75,12 @@ function getLogs(filter) {
     };
     const timer = setTimeout(finish, 5000);
     LOG_RPCS.forEach((u, i) => rpc1(u, "eth_getLogs", [filter], 5000)
-      .then((v) => { if (Array.isArray(v)) { got.set(u, v); if (i === 0) firstIn = true; } })
-      .catch(() => {})
+      .then((v) => { if (Array.isArray(v)) { got.set(u, v); if (i === 0) firstIn = true; logStats[i][v.length ? "ok" : "empty"]++; } })
+      .catch((e) => {
+        logStats[i].failed++;
+        const priv = u === process.env.BSC_RPC_URL;
+        logStats[i].lastError = priv ? (/timeout|abort/i.test(String(e?.name) + e?.message) ? "timeout" : /range|limit|too (many|large)/i.test(e?.message || "") ? "range too large" : "error") : String(e?.message || e).replace(/[^\x20-\x7e]+/g, " ").slice(0, 80);
+      })
       .finally(() => { left--; if (!left || (firstIn && got.size >= 2)) finish(); }));
   });
 }
@@ -83,7 +107,7 @@ async function store() {
   try { const { getStore } = await import("@netlify/blobs"); return getStore({ name: "soh-index", consistency: "strong" }); }
   catch { return null; }
 }
-const empty = () => ({ v: 1, lastBlock: START_BLOCK - 1, polls: {}, votes: [], handles: {}, preds: {}, pvotes: [] });
+const empty = () => ({ v: 2, lastBlock: START_BLOCK - 1, polls: {}, votes: [], handles: {}, preds: {}, pvotes: [] });
 
 // Agent ID name for a wallet: "" when it has none, null when the lookup failed (so it is retried later).
 async function handleOf(addr) {
@@ -103,12 +127,15 @@ async function audit(idx) {
   const pv = {}; idx.votes.forEach((v) => (pv[v.p] = (pv[v.p] || 0) + 1));
   const polls = await pool([...Array(Math.min(pc, 200)).keys()], 6, (i) => call(CONFIG.polls, "0x1a8cbcaa" + u256(i), at));
   if (polls.some((h, i) => num(h, 4) !== (pv[i] || 0))) return false; // getPoll(i).totalVotes
-  if (!CONFIG.predictions) return true;
-  const n = num(await call(CONFIG.predictions, "0x06661abd", at), 0); // count()
-  if (n !== Object.keys(idx.preds).length) return false;
   const qv = {}; idx.pvotes.forEach((v) => (qv[v.p] = (qv[v.p] || 0) + 1));
-  const preds = await pool([...Array(Math.min(n, 200)).keys()], 6, (i) => call(CONFIG.predictions, "0xfe83bece" + u256(i), at));
-  return preds.every((h, i) => num(h, 10) + num(h, 11) === (qv[i] || 0) && (num(h, 3) !== 0) === !!idx.preds[i]?.settled);
+  for (const [addr, ver] of PRED_CONTRACTS) {
+    const n = num(await call(addr, "0x06661abd", at), 0); // count()
+    if (n !== Object.values(idx.preds).filter((p) => p.ver === ver).length) return false;
+    const preds = await pool([...Array(Math.min(n, 200)).keys()], 6, (i) => call(addr, "0xfe83bece" + u256(i), at));
+    // getPrediction: words 10/11 = yes/no, word 3 = outcome (0 pending)
+    if (!preds.every((h, i) => { const p = idx.preds[predKey(ver, i)]; return num(h, 10) + num(h, 11) === (qv[predKey(ver, i)] || 0) && (num(h, 3) !== 0) === !!(p?.settled || p?.voided); })) return false;
+  }
+  return true;
 }
 
 /** Returns the up-to-date index. `fresh` = how many ms an index may be reused without asking the chain. */
@@ -117,7 +144,7 @@ export async function getIndex({ fresh = 4000 } = {}) {
   const s = await store();
   let idx = mem;
   if (s) { try { idx = (await s.get("index", { type: "json" })) || idx; } catch {} }
-  if (!idx || idx.v !== 1) idx = empty();
+  if (!idx || idx.v !== 2) idx = { ...empty(), handles: idx?.handles || {} }; // v2 index: predictions keyed per contract
   idx.preds ||= {}; idx.pvotes ||= [];
 
   // a few blocks behind the tip, so lagging providers have the blocks we ask about
@@ -133,7 +160,7 @@ export async function getIndex({ fresh = 4000 } = {}) {
     await Promise.all(Array.from({ length: Math.min(6, ranges.length) }, async () => {
       while (next < ranges.length && Date.now() - t0 < SCAN_BUDGET_MS) {
         const k = next++, [a, b] = ranges[k];
-        try { results[k] = await getLogs({ address: [CONFIG.polls, CONFIG.predictions].filter(Boolean), fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }); } catch {}
+        try { results[k] = await getLogs({ address: [CONFIG.polls, ...PRED_CONTRACTS.map(([a]) => a)], fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }); } catch {}
       }
     }));
     let done = 0;
@@ -142,19 +169,22 @@ export async function getIndex({ fresh = 4000 } = {}) {
     if (!done && idx.lastBlock < START_BLOCK) throw new Error("Could not read the chain's event logs right now. Try again in a minute.");
     const logs = results.slice(0, done).flat().sort((x, y) => parseInt(x.blockNumber, 16) - parseInt(y.blockNumber, 16) || parseInt(x.logIndex, 16) - parseInt(y.logIndex, 16));
     const newVotes = [], newPVotes = [];
-    const predAddr = (CONFIG.predictions || "").toLowerCase();
+    const verOf = Object.fromEntries(PRED_CONTRACTS.map(([a, v]) => [a.toLowerCase(), v]));
     for (const l of logs) {
       const b = parseInt(l.blockNumber, 16), id = Number(BigInt(l.topics[1]));
-      if (predAddr && l.address.toLowerCase() === predAddr) {
-        const h = l.data.slice(2);
+      const ver = verOf[l.address.toLowerCase()];
+      if (ver) {
+        const h = l.data.slice(2), k = predKey(ver, id);
         if (l.topics[0] === T_P_CREATED) {
-          idx.preds[id] = { id, creator: "0x" + l.topics[3].slice(26), asset: num(h, 0), strike: int256(word(h, 1)).toString(),
+          idx.preds[k] = { id, ver, key: k, creator: "0x" + l.topics[3].slice(26), asset: num(h, 0), strike: int256(word(h, 1)).toString(),
             votingEndsAt: num(h, 2), checkAt: num(h, 3), block: b, tx: l.transactionHash, settled: null };
         } else if (l.topics[0] === T_P_VOTED) {
-          const v = { p: id, voter: "0x" + l.topics[3].slice(26), above: num(h, 0) === 1, b, tx: l.transactionHash };
+          const v = { p: k, voter: "0x" + l.topics[3].slice(26), above: num(h, 0) === 1, b, tx: l.transactionHash };
           idx.pvotes.push(v); newPVotes.push(v);
-        } else if (l.topics[0] === T_P_SETTLED && idx.preds[id]) {
-          idx.preds[id].settled = { round: BigInt("0x" + word(h, 0)).toString(), price: int256(word(h, 1)).toString(), above: num(h, 2) === 1, tx: l.transactionHash };
+        } else if (l.topics[0] === T_P_VOIDED && idx.preds[k]) {
+          idx.preds[k].voided = { tx: l.transactionHash };
+        } else if (l.topics[0] === T_P_SETTLED && idx.preds[k]) {
+          idx.preds[k].settled = { round: BigInt("0x" + word(h, 0)).toString(), price: int256(word(h, 1)).toString(), above: num(h, 2) === 1, tx: l.transactionHash };
         }
         continue;
       }
@@ -360,6 +390,7 @@ export function events(idx, { since = 0, limit = 60 } = {}) {
 export const fmtUsd = (v) => { const n = Number(BigInt(v)) / 1e8; return "$" + n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
 export function predictionStatus(p, nowSec) {
   if (p.settled) return "settled";
+  if (p.voided) return "void";
   if (nowSec < p.votingEndsAt) return "voting";
   if (nowSec < p.checkAt) return "waiting";
   return "ready_to_settle";
@@ -367,12 +398,12 @@ export function predictionStatus(p, nowSec) {
 export function predictionsList(idx, { nowSec = Math.floor(Date.now() / 1000), limit = 50 } = {}) {
   const tally = {};
   for (const v of idx.pvotes || []) { const t = (tally[v.p] ||= { yes: 0, no: 0 }); v.above ? t.yes++ : t.no++; }
-  return Object.values(idx.preds || {}).sort((a, b) => b.id - a.id).slice(0, limit).map((p) => {
-    const t = tally[p.id] || { yes: 0, no: 0 }, total = t.yes + t.no, status = predictionStatus(p, nowSec);
+  return Object.values(idx.preds || {}).sort((a, b) => b.block - a.block || b.ver - a.ver || b.id - a.id).slice(0, limit).map((p) => {
+    const t = tally[p.key] || { yes: 0, no: 0 }, total = t.yes + t.no, status = predictionStatus(p, nowSec);
     const crowd = total ? (t.yes > t.no ? "above" : t.no > t.yes ? "not_above" : "split") : null;
     const reality = p.settled ? (p.settled.above ? "above" : "not_above") : null;
     return {
-      id: p.id, asset: ASSETS[p.asset], assetIndex: p.asset, strike: p.strike, strikeUsd: fmtUsd(p.strike),
+      id: p.id, version: p.ver, key: p.key, contract: p.ver === 1 ? CONFIG.predictionsV1 : CONFIG.predictions, asset: ASSETS[p.asset], assetIndex: p.asset, strike: p.strike, strikeUsd: fmtUsd(p.strike),
       question: `Will ${ASSETS[p.asset]}/USD be above ${fmtUsd(p.strike)} at ${new Date(p.checkAt * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC?`,
       votingEndsAt: p.votingEndsAt, checkAt: p.checkAt, status, yes: t.yes, no: t.no, verifiedVoters: total, crowd,
       settled: p.settled ? { price: p.settled.price, priceUsd: fmtUsd(p.settled.price), round: p.settled.round, above: p.settled.above, tx: p.settled.tx } : null,

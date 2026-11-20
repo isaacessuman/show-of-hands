@@ -16,6 +16,9 @@ ROUNDS=0x3510B0Cd977a1bc759f674Ef6b5B6Ac769701D7B
 ATTESTOR=0x3f2e6f06856421054906c335586c129c1D2EC09F
 CROWDSCORE=0x1a912bc6d6fA8E3a3E9Eb28ff31B6bF1610Ecff3
 PREDICTIONS=0x77a23A374729B6482Bc7034cFFC3c78f96869c8a
+CROWDSCORE_V2=0xA43Fa81D92c9229A9883379f943Ad6E170a9003E
+PREDICTIONS_V2=0x27299aBe7c2226b95CCA017ee0A2210F2f8D5C92
+FEEDS='[0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE,0x264990fbd0A4796A3E3d8E37C4d5F87a3aCa5Ebf,0x9ef1B8c0E4F7dc8bF5719Ea496883DC6401d5b2e]'
 
 RESULTS=()
 v() {
@@ -33,5 +36,11 @@ else RESULTS+=("SKIPPED CrowdScore (not deployed yet)"); fi
 if [ "$(cast code $PREDICTIONS --rpc-url https://bsc-dataseed.bnbchain.org 2>/dev/null)" != "0x" ]; then
   v "$PREDICTIONS" src/Predictions.sol:Predictions "$(cast abi-encode 'c(address,address[3],address,address,address)' $AGENT_ID '[0x0567F2323251f0Aab15c8dFb1967E4e8A7D42aeE,0x264990fbd0A4796A3E3d8E37C4d5F87a3aCa5Ebf,0x9ef1B8c0E4F7dc8bF5719Ea496883DC6401d5b2e]' $CROWDSCORE $ERC8004_IDENTITY $ERC8004_REPUTATION)"
 else RESULTS+=("SKIPPED Predictions (not deployed yet)"); fi
+if [ "$(cast code $CROWDSCORE_V2 --rpc-url https://bsc-dataseed.bnbchain.org 2>/dev/null)" != "0x" ]; then
+  v "$CROWDSCORE_V2" src/CrowdScoreV2.sol:CrowdScoreV2 "$(cast abi-encode 'c(address,address,address)' $POLLS $ERC8004_IDENTITY $ERC8004_REPUTATION)"
+else RESULTS+=("SKIPPED CrowdScoreV2 (not deployed yet)"); fi
+if [ "$(cast code $PREDICTIONS_V2 --rpc-url https://bsc-dataseed.bnbchain.org 2>/dev/null)" != "0x" ]; then
+  v "$PREDICTIONS_V2" src/PredictionsV2.sol:PredictionsV2 "$(cast abi-encode 'c(address,address[3],address,address,address)' $AGENT_ID "$FEEDS" $CROWDSCORE_V2 $ERC8004_IDENTITY $ERC8004_REPUTATION)"
+else RESULTS+=("SKIPPED PredictionsV2 (not deployed yet)"); fi
 echo; echo "=== Summary"; printf '%s\n' "${RESULTS[@]}"
-echo "Check: https://bscscan.com/address/$POLLS#code  https://bscscan.com/address/$ROUNDS#code  https://bscscan.com/address/$ATTESTOR#code  https://bscscan.com/address/$CROWDSCORE#code  https://bscscan.com/address/$PREDICTIONS#code"
+echo "Check: https://bscscan.com/address/$POLLS#code  https://bscscan.com/address/$ROUNDS#code  https://bscscan.com/address/$ATTESTOR#code  https://bscscan.com/address/$CROWDSCORE#code  https://bscscan.com/address/$PREDICTIONS#code  https://bscscan.com/address/$CROWDSCORE_V2#code  https://bscscan.com/address/$PREDICTIONS_V2#code"

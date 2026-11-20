@@ -26,7 +26,7 @@ const client = createPublicClient({ chain: bsc, transport: http(process.env.SOH_
 // Gas limits measured on a fork of BSC mainnet, with headroom. Low estimates are a known cause of failed calls.
 const GAS = { vote: 250_000n, createPoll: 1_300_000n, applyProject: 450_000n, backBase: 300_000n, backPer: 120_000n,
   claim: 150_000n, refund: 120_000n, withdrawPool: 120_000n, topUpPool: 120_000n, finalise: 3_000_000n,
-  link: 200_000n, attest: 400_000n, predCreate: 300_000n, predVote: 200_000n, settle: 150_000n };
+  link: 700_000n, attest: 900_000n, predCreate: 300_000n, predVote: 250_000n, settle: 300_000n, pattest: 900_000n, void: 100_000n };
 
 const die = (msg, code = 1) => { console.log(JSON.stringify({ ok: false, error: msg }, null, 2)); process.exit(code); };
 const need = (k) => ADDR[k] || die(`The ${k} contract address is not set yet (not deployed, or set SOH_${k.toUpperCase()}).`);
@@ -70,7 +70,10 @@ const FIXES = {
   BadTimes: "Check time must be 2.5 hours to 30 days ahead.",
   TooEarly: "The check time has not passed yet.",
   AlreadySettled: "This price question is already settled.",
-  BadRound: "That price round is not the first one after the check time. Run settle again to find it.",
+  BadRound: "That price round is not the earliest one after the check time. Run settle again to find it.",
+  EarlierRoundExists: "Chainlink has an earlier price after the check time in another feed phase. Run settle again to find it.",
+  NothingToAttest: "Nothing new to add yet: wait for polls to close or questions to settle.",
+  NeedMoreGas: "Send it with the gas limit from this command (ERC-8004 writes need at least 400,000 gas left).",
   NotSettled: "A price question in the range is not settled yet. Settle it first.",
   RangeTooLong: "At most 100 polls per score update. Run rep-attest again for the rest.",
   RegistryUnavailable: "The Agent ID registry did not answer. Try again later; no money moved.",
@@ -232,19 +235,21 @@ async function main() {
         next: `Read the answer with: node scripts/soh.mjs check ${c}  (signal looks_safe / not_sure / avoid once decided). A crowd signal is not an audit: never the only check, and never move the user's money on it alone.` }));
     }
     case "rep": {
-      // Your crowd-accuracy record and what CrowdScore would write to ERC-8004 right now. Only for the user's own wallet.
+      // Your lifetime crowd- and prediction-accuracy (v2: one live ERC-8004 entry each). Only for the user's own wallet.
       need("crowdScore"); const w = addr(o._[0] || from, "wallet");
       await live("crowdScore");
       const voice = await read("polls", "Polls", "voiceOf", [w]);
       if (/^0x0+$/.test(voice)) die(FIXES.NoAgentID);
-      const [l, start, count] = await Promise.all([read("crowdScore", "CrowdScore", "links", [voice]), read("crowdScore", "CrowdScore", "next", [voice]), read("polls", "Polls", "pollCount")]);
-      let to = start; const cap = start + 100n < count ? start + 100n : count;
-      while (to < cap && !(await read("polls", "Polls", "isOpen", [to]))) to++;
-      const pv = to > start ? await read("crowdScore", "CrowdScore", "preview", [voice, to]) : null;
-      return out({ ok: true, voice, linkedAgentId: l[1] === "0x0000000000000000000000000000000000000000" ? null : String(l[0]),
-        scoredUpTo: String(start), readyRange: to > start ? [String(start), String(to - 1n)] : null,
-        counted: pv ? pv[2] : 0, matched: pv ? pv[3] : 0, accuracyPct: pv && pv[2] > 0 ? Math.floor((pv[3] * 100) / pv[2]) : null,
-        next: l[1] === "0x0000000000000000000000000000000000000000" ? "Link an ERC-8004 agent this wallet owns: rep-link <agentId> --from W" : pv && pv[2] > 0 ? "Write the score: rep-attest --from W" : "Nothing to score yet. Vote, wait for polls to close, then check again." });
+      const [l, sc, pv, ps, ppv] = await Promise.all([read("crowdScore", "CrowdScore", "links", [voice]), read("crowdScore", "CrowdScore", "scoreOf", [voice]),
+        read("crowdScore", "CrowdScore", "preview", [voice]), read("predictions", "Predictions", "scoreOf", [voice]), read("predictions", "Predictions", "preview", [voice])]);
+      const counted = sc[0] + pv[2], matched = sc[1] + pv[3], pc = ps[0] + ppv[2], pr = ps[1] + ppv[3];
+      const linked = l[1] !== "0x0000000000000000000000000000000000000000";
+      const newPolls = Number(pv[1] - pv[0]), newAnswers = Number(ppv[1] - ppv[0]);
+      return out({ ok: true, voice, linkedAgentId: linked ? String(l[0]) : null,
+        crowd: { counted, matched, accuracyPct: counted > 0 ? Math.floor((matched * 100) / counted) : null, onChain: { counted: sc[0], matched: sc[1] }, pollsReadyToAdd: newPolls },
+        predictions: { counted: pc, correct: pr, accuracyPct: pc > 0 ? Math.floor((pr * 100) / pc) : null, onChain: { counted: ps[0], correct: ps[1] }, answersReadyToAdd: newAnswers },
+        next: !linked ? "Link an ERC-8004 agent this wallet owns: rep-link <agentId> --from W"
+          : newPolls ? "Update the crowd score: rep-attest --from W" : newAnswers ? "Update the prediction score: pattest --from W" : "Up to date. Vote, wait for polls to close, then check again." });
     }
     case "rep-link": {
       need("crowdScore"); await live("crowdScore"); if (!from) die("--from is required.");
@@ -252,21 +257,19 @@ async function main() {
       const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "link", args: [id] });
       const check = await simulate(from, ADDR.crowdScore, "CrowdScore", "link", [id]);
       return out(tx({ from, to: ADDR.crowdScore, data, gas: GAS.link, action: "link", check,
-        summary: `Link this Agent ID's Show of Hands voting record to ERC-8004 agent #${id} (must be owned by this same wallet). Sends no BNB.` }));
+        summary: `Link this Agent ID's Show of Hands record to ERC-8004 agent #${id} (must be owned by this same wallet). Any score you already have moves there. Sends no BNB.` }));
     }
     case "rep-attest": {
       need("crowdScore"); await live("crowdScore"); if (!from) die("--from is required.");
       const w = addr(o.wallet || from, "wallet"), voice = await read("polls", "Polls", "voiceOf", [w]);
       if (/^0x0+$/.test(voice)) die(FIXES.NoAgentID);
-      const [start, count] = await Promise.all([read("crowdScore", "CrowdScore", "next", [voice]), read("polls", "Polls", "pollCount")]);
-      let to = start; const cap = start + 100n < count ? start + 100n : count;
-      while (to < cap && !(await read("polls", "Polls", "isOpen", [to]))) to++;
-      if (to === start) die("Nothing new to score: the next poll is still open or there are no new polls.");
-      const a = [voice, to];
-      const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "attest", args: a });
-      const check = await simulate(from, ADDR.crowdScore, "CrowdScore", "attest", a);
-      return out(tx({ from, to: ADDR.crowdScore, data, gas: 300_000n + 90_000n * (to - start), action: "attest", check,
-        summary: `Write the crowd-accuracy score for polls ${start}–${to - 1n} into the ERC-8004 Reputation Registry (tag "crowd-accuracy"). Sends no BNB.` }));
+      const pv = await read("crowdScore", "CrowdScore", "preview", [voice]);
+      const n = pv[1] - pv[0];
+      if (!n) die("Nothing new to score: the next poll is still open or there are no new polls.");
+      const data = encodeFunctionData({ abi: ABI.CrowdScore, functionName: "attest", args: [voice] });
+      const check = await simulate(from, ADDR.crowdScore, "CrowdScore", "attest", [voice]);
+      return out(tx({ from, to: ADDR.crowdScore, data, gas: GAS.attest + 60_000n * n, action: "attest", check,
+        summary: `Add polls ${pv[0]}–${pv[1] - 1n} (${pv[2]} decided, ${pv[3]} with the crowd) to the lifetime crowd-accuracy score and replace the one live ERC-8004 entry (tag "crowd-accuracy"). Sends no BNB.` }));
     }
     case "predictions": {
       // Price questions answered by Chainlink on-chain, with the crowd's lean and results (read-only, over HTTPS).
@@ -314,28 +317,36 @@ async function main() {
       const p = await read("predictions", "Predictions", "getPrediction", [id]);
       if (p.outcome !== 0) die("Already settled.");
       if (BigInt(Math.floor(Date.now() / 1000)) < p.checkAt) die(`Too early: the check time is ${new Date(Number(p.checkAt) * 1000).toISOString()}.`);
-      const round = await read("predictions", "Predictions", "firstRoundAfter", [p.asset, p.checkAt]);
-      if (!round) die("The price feed has no round after the check time yet. Try again in a minute.");
-      const a = [id, round];
+      // the earliest Chainlink round at/after the check time, plus proofs for the neighbouring feed phases
+      const [round, prevHint, nextHint] = await read("predictions", "Predictions", "settleArgs", [p.asset, p.checkAt]);
+      if (!round) die(BigInt(Math.floor(Date.now() / 1000)) > p.checkAt + 30n * 86400n ? `No price arrived within 30 days. Anyone may void it: void ${id} --from W` : "The price feed has no round after the check time yet. Try again in a minute.");
+      const a = [id, round, prevHint, nextHint];
       const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "settle", args: a });
       const check = await simulate(from, ADDR.predictions, "Predictions", "settle", a);
       return out(tx({ from, to: ADDR.predictions, data, gas: GAS.settle, action: "settle", check,
-        summary: `Settle price question ${id} with Chainlink round ${round} (the first price at or after the check time). Sends no BNB.` }));
+        summary: `Settle price question ${id} with Chainlink round ${round} (the earliest price at or after the check time). Sends no BNB.` }));
+    }
+    case "void": {
+      // void <id> --from W. Only when a question is still unsettled 30 days after its check time; it then counts for no one.
+      await live("predictions"); if (!from) die("--from is required.");
+      const id = int(o._[0], "prediction id");
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "voidPrediction", args: [id] });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "voidPrediction", [id]);
+      return out(tx({ from, to: ADDR.predictions, data, gas: GAS.void, action: "void", check,
+        summary: `Void price question ${id}: no Chainlink price arrived within 30 days of its check time. It counts for no one. Sends no BNB.` }));
     }
     case "pattest": {
       // pattest --from W [--wallet W2]: write prediction accuracy to ERC-8004 (uses the agent linked with rep-link)
       await live("predictions"); if (!from) die("--from is required.");
       const w = addr(o.wallet || from, "wallet"), voice = await read("polls", "Polls", "voiceOf", [w]);
       if (/^0x0+$/.test(voice)) die(FIXES.NoAgentID);
-      const [start, n] = await Promise.all([read("predictions", "Predictions", "next", [voice]), read("predictions", "Predictions", "count")]);
-      let to = start; const cap = start + 100n < n ? start + 100n : n;
-      while (to < cap && (await read("predictions", "Predictions", "getPrediction", [to])).outcome !== 0) to++;
-      if (to === start) die("Nothing new to score: the next price question is not settled yet.");
-      const a = [voice, to];
-      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "attest", args: a });
-      const check = await simulate(from, ADDR.predictions, "Predictions", "attest", a);
-      return out(tx({ from, to: ADDR.predictions, data, gas: 250_000n + 15_000n * (to - start), action: "attest", check,
-        summary: `Write prediction accuracy for questions ${start}-${to - 1n} into the ERC-8004 Reputation Registry (tag "prediction-accuracy"). Sends no BNB.` }));
+      const pv = await read("predictions", "Predictions", "preview", [voice]);
+      const n = pv[1] - pv[0];
+      if (!n) die("Nothing new to score: your next answered question is not settled yet.");
+      const data = encodeFunctionData({ abi: ABI.Predictions, functionName: "attest", args: [voice] });
+      const check = await simulate(from, ADDR.predictions, "Predictions", "attest", [voice]);
+      return out(tx({ from, to: ADDR.predictions, data, gas: GAS.pattest + 15_000n * n, action: "attest", check,
+        summary: `Add ${pv[2]} settled price answers (${pv[3]} right) to the lifetime prediction-accuracy score and replace the one live ERC-8004 entry (tag "prediction-accuracy"). Sends no BNB.` }));
     }
     case "ask":
     case "create-poll": {
@@ -420,7 +431,7 @@ async function main() {
     }
     case "abi": return out({ ok: true, contracts: ADDR, functions: Object.fromEntries(Object.entries(ABI).map(([k, v]) => [k, v.filter((x) => x.type === "function").map((f) => `${f.name}(${f.inputs.map((i) => i.type).join(",")})`)])) });
     default:
-      die("Commands: polls | poll <id> [--from] | verdict <id|latest> [--quorum 5] | ask --from --question --options \"A|B\" [--hours] | vote <poll> <option> --from | create-poll --from --question --options \"A|B\" [--hours] | round <id> | back <round> --split \"pid:bnb,...\" --from | apply <round> --name [--url] --from | claim <round> <project> --from | refund <round> <project> --from | finalise <round> --from | today | check <addr> | ask-check <addr> --from | rep [wallet] | rep-link <agentId> --from | rep-attest --from | predictions | predict --asset BNB --above 650 [--hours 24] --from | pvote <id> yes|no --from | settle <id> --from | pattest --from | abi");
+      die("Commands: polls | poll <id> [--from] | verdict <id|latest> [--quorum 5] | ask --from --question --options \"A|B\" [--hours] | vote <poll> <option> --from | create-poll --from --question --options \"A|B\" [--hours] | round <id> | back <round> --split \"pid:bnb,...\" --from | apply <round> --name [--url] --from | claim <round> <project> --from | refund <round> <project> --from | finalise <round> --from | today | check <addr> | ask-check <addr> --from | rep [wallet] | rep-link <agentId> --from | rep-attest --from | predictions | predict --asset BNB --above 650 [--hours 24] --from | pvote <id> yes|no --from | settle <id> --from | void <id> --from | pattest --from | abi");
   }
 }
 const out = (x) => console.log(JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toString() : v), 2));
