@@ -15,5 +15,5 @@ export const CONFIG = {
   predictions: "0x77a23A374729B6482Bc7034cFFC3c78f96869c8a",
   // The project's own Agent ID (showofhands). Its polls are the daily "Question of the Day".
   official: "0x5cDA0229C5D11c2a1Ac5Ce0EfD07CABAea061Dc9",
-  gas: { vote: 250000, createPoll: 900000, applyProject: 450000, back: 300000, claim: 150000, refund: 120000, finalise: 3000000, link: 200000, attest: 600000, predCreate: 300000, predVote: 200000, settle: 150000 },
+  gas: { vote: 250000, createPoll: 1300000, applyProject: 450000, back: 300000, claim: 150000, refund: 120000, finalise: 3000000, link: 200000, attest: 600000, predCreate: 300000, predVote: 200000, settle: 150000 },
 };

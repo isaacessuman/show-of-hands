@@ -22,3 +22,9 @@ site/.netlify/
 # OS
 .DS_Store
 design-options/
+
+# large media made for the launch (kept locally)
+brand/video/clips/
+brand/video/*.mp4
+brand/x/banner-*.png
+brand/x/pfp-*.png

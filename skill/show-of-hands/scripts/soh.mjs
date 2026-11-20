@@ -24,7 +24,7 @@ const PD_ASSETS = ["BNB", "BTC", "ETH"];
 const client = createPublicClient({ chain: bsc, transport: http(process.env.SOH_RPC || CFG.rpc) });
 
 // Gas limits measured on a fork of BSC mainnet, with headroom. Low estimates are a known cause of failed calls.
-const GAS = { vote: 250_000n, createPoll: 900_000n, applyProject: 450_000n, backBase: 300_000n, backPer: 120_000n,
+const GAS = { vote: 250_000n, createPoll: 1_300_000n, applyProject: 450_000n, backBase: 300_000n, backPer: 120_000n,
   claim: 150_000n, refund: 120_000n, withdrawPool: 120_000n, topUpPool: 120_000n, finalise: 3_000_000n,
   link: 200_000n, attest: 400_000n, predCreate: 300_000n, predVote: 200_000n, settle: 150_000n };
 
@@ -89,7 +89,33 @@ const FIXES = {
   NothingToRefund: "There is nothing to refund for this wallet and project.",
   NothingToWithdraw: "There is no unused matching money for this wallet.",
   AlreadyApplied: "This Agent ID already listed a project in this round.",
+  BadEndTime: "A poll must last from 1 hour to 30 days.",
+  BadOption: "That option number does not exist in this poll. Options start at 0.",
+  BadOptionCount: "A poll needs 2 to 8 options.",
+  EmptyText: "The question and every option need some text.",
+  TextTooLong: "Too long: a question can be 280 bytes and an option 64 bytes (Chinese characters count as 3 bytes).",
+  NoSuchPoll: "There is no poll with that number.",
+  BadAsset: "The asset must be BNB, BTC or ETH.",
+  BadStrike: "The price must be more than 0.",
+  NoSuchPrediction: "There is no price question with that number.",
+  RoundTooLate: "The feed sent no price within a day of the check time, so this question cannot be settled.",
+  EmptyRange: "Nothing new to score yet.",
+  RoundEnded: "This funding round has ended.",
+  TooManyProjects: "This round is full: no more projects can be listed or approved.",
+  WalletMismatch: "This Agent ID backed this project from a different wallet. Use that wallet.",
+  BadText: "The project name must be 1 to 64 bytes and the link at most 200 bytes.",
+  NoSuchRound: "There is no funding round with that number.",
+  NoSuchProject: "There is no project with that number in this round.",
 };
+
+// Poll length in hours: default 72, at least 1.5 (30-minute margin on the contract's 1-hour minimum,
+// so a short poll still passes after signing delays), at most 719 (contract maximum is 30 days).
+function pollHours(v) {
+  const h = v === undefined || v === true ? 72 : Number(v);
+  if (!Number.isFinite(h) || h <= 0) die("--hours must be a number of hours, e.g. --hours 24");
+  if (h > 719) die("--hours can be at most 719 (the contract allows up to 30 days).");
+  return Math.max(1.5, h);
+}
 
 function tx({ from, to, value = 0n, data, gas, action, summary, check, next }) {
   const valueStr = formatEther(value);
@@ -196,8 +222,8 @@ async function main() {
       if (!isContract(c)) die("Usage: ask-check <0x contract address> --from W [--name \"Project\"] [--hours 72] [--lang zh]");
       const L = CHECK[o.lang === "zh" ? "zh" : "en"];
       const question = L.q(c, cleanName(o.name));
-      const hours = Number(o.hours || 72);
-      const endsAt = BigInt(Math.floor(Date.now() / 1000) + Math.max(5400, Math.round(hours * 3600)));
+      const hours = pollHours(o.hours);
+      const endsAt = BigInt(Math.floor(Date.now() / 1000) + Math.round(hours * 3600));
       const a = [question, L.options, endsAt];
       const data = encodeFunctionData({ abi: ABI.Polls, functionName: "createPoll", args: a });
       const check = await simulate(from, ADDR.polls, "Polls", "createPoll", a);
@@ -256,9 +282,11 @@ async function main() {
       if (asset < 0) die("--asset must be BNB, BTC or ETH.");
       const above = Number(String(o.above || "").replace(/[$,]/g, ""));
       if (!(above > 0)) die("--above must be a USD price, e.g. --above 650");
-      const hours = Number(o.hours || 24);
+      const hours = o.hours === undefined || o.hours === true ? 24 : Number(o.hours);
       if (!(hours >= 2.5 && hours <= 720)) die("--hours must be from 2.5 to 720.");
-      const nowS = Math.floor(Date.now() / 1000), checkAt = Math.ceil((nowS + hours * 3600) / 3600) * 3600;
+      const nowS = Math.floor(Date.now() / 1000);
+      // Round the check time up to the hour, but never past 30 days minus 10 minutes (signing delay margin).
+      const checkAt = Math.min(Math.ceil((nowS + hours * 3600) / 3600) * 3600, Math.floor((nowS + 30 * 86400 - 600) / 3600) * 3600);
       const votingEndsAt = Math.max(nowS + 3900, nowS + Math.floor((checkAt - nowS) / 2));
       const strike = BigInt(Math.round(above * 1e8));
       const a = [asset, strike, BigInt(votingEndsAt), BigInt(checkAt)];
@@ -314,9 +342,8 @@ async function main() {
       need("polls"); if (!from) die("--from is required.");
       const question = o.question || die('--question "..." is required.');
       const options = String(o.options || die('--options "A|B|C" is required.')).split("|").map((s) => s.trim()).filter(Boolean);
-      const hours = Number(o.hours || 72);
-      // 30-minute margin on the 1-hour minimum, so a short poll still passes after signing delays.
-      const endsAt = BigInt(Math.floor(Date.now() / 1000) + Math.max(5400, Math.round(hours * 3600)));
+      const hours = pollHours(o.hours);
+      const endsAt = BigInt(Math.floor(Date.now() / 1000) + Math.round(hours * 3600));
       const a = [question, options, endsAt];
       const data = encodeFunctionData({ abi: ABI.Polls, functionName: "createPoll", args: a });
       const check = await simulate(from, ADDR.polls, "Polls", "createPoll", a);
@@ -347,11 +374,16 @@ async function main() {
       const pairs = String(o.split || die('--split "3:0.005,7:0.002" is required (project id : BNB amount).')).split(",");
       const ids = [], amts = [], lines = [];
       const r = await read("rounds", "FundingRounds", "getRound", [rid]);
+      const sofar = {};
       for (const pr of pairs) {
         const [pid, bnb] = pr.split(":");
         const p = await read("rounds", "FundingRounds", "getProject", [rid, int(pid, "project id")]);
         const w = parseEther(bnb || die("Each entry needs an amount, e.g. 3:0.005"));
-        if (w < r.minPerBacker || w > r.maxPerBacker) die(`Each amount must be between ${formatEther(r.minPerBacker)} and ${formatEther(r.maxPerBacker)} BNB.`);
+        if (w <= 0n) die("Each amount must be more than 0.");
+        const k = String(BigInt(pid));
+        if (sofar[k] === undefined) sofar[k] = await read("rounds", "FundingRounds", "paidByWallet", [rid, BigInt(pid), from]);
+        sofar[k] += w;
+        if (sofar[k] < r.minPerBacker || sofar[k] > r.maxPerBacker) die(`Your total for project ${pid} (earlier backing plus this) must be between ${formatEther(r.minPerBacker)} and ${formatEther(r.maxPerBacker)} BNB; it would be ${formatEther(sofar[k])}.`);
         ids.push(BigInt(pid)); amts.push(w); lines.push(`${bnb} BNB to project ${pid} ("${p.name}")`);
       }
       const value = amts.reduce((a, b) => a + b, 0n);

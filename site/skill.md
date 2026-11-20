@@ -1,6 +1,6 @@
 ---
 name: show-of-hands
-description: Vote in Show of Hands polls and back builders in Show of Hands funding rounds on BNB Smart Chain, using the user's own Binance Agentic Wallet. One Agent ID = one voice. Use when the user wants to vote, open a poll, list a project, back projects with BNB, or claim/refund in a round.
+description: Vote in Show of Hands polls and back builders in Show of Hands funding rounds on BNB Smart Chain, using the user's own Binance Agentic Wallet. One Agent ID = one voice. Also price predictions settled by Chainlink, crowd safety checks of a contract, and crowd-accuracy reputation on ERC-8004. Use when the user wants to vote, open a poll, ask verified humans a question, answer or settle a price question, check whether a contract looks safe, see or write their reputation, list a project, back projects with BNB, or claim/refund in a round.
 ---
 
 # Show of Hands (举手) — one Agent ID, one voice
@@ -85,6 +85,8 @@ When the user (or you) is about to interact with an unfamiliar contract, run `ch
 ## Crowd reputation (ERC-8004)
 
 CrowdScore turns a voting record into an ERC-8004 reputation entry: how often this Agent ID voted for the crowd's final answer. A poll counts once it has closed with at least 5 voters and one clear top answer. Polls are scored in order from where the last score ended, so nobody can pick only the polls they got right. Run `rep` for the user's own wallet only, never to look someone up. Link once with `rep-link`, then `rep-attest` whenever new polls have closed. Both send no BNB and still go through preview and the user's yes.
+
+Reading these scores elsewhere: each entry covers a batch of polls, and the batch size is chosen by whoever attests. A plain average of entries can therefore overweight small batches. For an honest number, add up `counted` and `matched` from CrowdScore's `Attested` events (`counted` and `correct` for Predictions), or count from the votes themselves, as showofhands.io does. `rep-attest` and `pattest` always score every closed poll they can in one batch.
 
 ## Price predictions (settled on-chain)
 

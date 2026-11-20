@@ -6,8 +6,10 @@ import { verdict, DEFAULT_QUORUM } from "./verdict.js";
 import { parseCheck, mentions, signalOf, norm } from "./check.js";
 
 export const START_BLOCK = 134429000; // a little before the Polls contract's first event (19 Nov 2026)
-const CHUNK = 20000;                   // public RPCs cap eth_getLogs at 50k blocks; stay well under
-const MAX_CHUNKS_PER_CALL = 48;        // keeps one request under the function time limit while catching up
+const CHUNK = 5000;                    // the free log providers below cap eth_getLogs at 5,000 blocks
+const MAX_CHUNKS_PER_CALL = 40;        // upper bound per request; a time budget also stops the scan early
+const SCAN_BUDGET_MS = 3000;           // stop starting new chunks after this, so a request stays fast
+const AUDIT_MS = 5 * 60 * 1000;        // how often the index is checked against the contracts' own totals
 const T_CREATED = "0xaf4b61a2a3bc5f04d62c92b8409507cdc7110d18e6ef894ec2bccde1de2804fd";
 const T_VOTED = "0xf1a292b5c85a98866e2f9a67c79f4426fcc55dee229ee820462c1755212fb523";
 const SEL_HANDLE = "0xc50a1514";
@@ -17,23 +19,46 @@ const T_P_VOTED = "0x688dfd3fd88e5640539068db8245befe5cc74cd43e2325472be60b376f9
 const T_P_SETTLED = "0xe0c594973eb8413677fe0cea05d779d4255f1b4387cf98b31b9b86990ff55686";
 export const ASSETS = ["BNB", "BTC", "ETH"];
 const int256 = (w) => { const v = BigInt("0x" + w); return v >= 1n << 255n ? v - (1n << 256n) : v; };
-const LOG_RPCS = ["https://bsc-rpc.publicnode.com", process.env.BSC_RPC_URL].filter(Boolean);
+// Public log providers can silently answer [] for blocks that do hold events (seen on publicnode and pocket,
+// Nov 2026). So every range is asked of two providers and the answers are merged, and the whole index is
+// regularly checked against the contracts' own totals (see audit below).
+const LOG_RPCS = [process.env.BSC_RPC_URL, "https://rpc-bsc.48.club", "https://public-bsc.nownodes.io",
+  "https://bsc.api.pocket.network", "https://bsc-rpc.publicnode.com"].filter(Boolean);
 const CALL_RPCS = [process.env.BSC_RPC_URL, CONFIG.rpc, "https://bsc-rpc.publicnode.com"].filter(Boolean);
 
+async function rpc1(url, method, params, ms = 8000) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(ms),
+  });
+  const j = await r.json();
+  if (j.result !== undefined && j.result !== null) return j.result;
+  throw new Error(j.error?.message || "empty result");
+}
 async function rpc(urls, method, params) {
   let last;
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(8000),
-      });
-      const j = await r.json();
-      if (j.result !== undefined && j.result !== null) return j.result;
-      last = new Error(j.error?.message || "empty result");
-    } catch (e) { last = e; }
-  }
+  for (const url of urls) { try { return await rpc1(url, method, params); } catch (e) { last = e; } }
   throw last;
+}
+
+// Logs for one block range: ask every provider at once and merge the answers. Stop waiting once the first
+// (most reliable) provider and one other have answered, or after 5 s with whatever has arrived. None = throw.
+function getLogs(filter) {
+  return new Promise((resolve, reject) => {
+    const got = new Map(); let left = LOG_RPCS.length, firstIn = false, finished = false;
+    const finish = () => {
+      if (finished) return; finished = true; clearTimeout(timer);
+      if (!got.size) return reject(new Error("no log provider answered"));
+      const seen = new Map();
+      for (const l of [...got.values()].flat()) seen.set(l.transactionHash + ":" + l.logIndex, l);
+      resolve([...seen.values()]);
+    };
+    const timer = setTimeout(finish, 5000);
+    LOG_RPCS.forEach((u, i) => rpc1(u, "eth_getLogs", [filter], 5000)
+      .then((v) => { if (Array.isArray(v)) { got.set(u, v); if (i === 0) firstIn = true; } })
+      .catch(() => {})
+      .finally(() => { left--; if (!left || (firstIn && got.size >= 2)) finish(); }));
+  });
 }
 
 // --- minimal ABI decoding
@@ -60,11 +85,30 @@ async function store() {
 }
 const empty = () => ({ v: 1, lastBlock: START_BLOCK - 1, polls: {}, votes: [], handles: {}, preds: {}, pvotes: [] });
 
+// Agent ID name for a wallet: "" when it has none, null when the lookup failed (so it is retried later).
 async function handleOf(addr) {
   try {
     const h = (await rpc(CALL_RPCS, "eth_call", [{ to: CONFIG.agentId, data: SEL_HANDLE + addr.slice(2).padStart(64, "0") }, "latest"])).slice(2);
     return h.length >= 128 ? str(h, num(h, 0)) : "";
-  } catch { return ""; }
+  } catch { return null; }
+}
+
+const call = (to, data, block) => rpc(CALL_RPCS, "eth_call", [{ to, data }, block]).then((h) => h.slice(2));
+const u256 = (n) => BigInt(n).toString(16).padStart(64, "0");
+// Compare the index with the contracts' own totals at the block the index has reached. true = they agree.
+async function audit(idx) {
+  const at = "0x" + idx.lastBlock.toString(16);
+  const pc = num(await call(CONFIG.polls, "0x9207891d", at), 0); // pollCount()
+  if (pc !== Object.keys(idx.polls).length) return false;
+  const pv = {}; idx.votes.forEach((v) => (pv[v.p] = (pv[v.p] || 0) + 1));
+  const polls = await pool([...Array(Math.min(pc, 200)).keys()], 6, (i) => call(CONFIG.polls, "0x1a8cbcaa" + u256(i), at));
+  if (polls.some((h, i) => num(h, 4) !== (pv[i] || 0))) return false; // getPoll(i).totalVotes
+  if (!CONFIG.predictions) return true;
+  const n = num(await call(CONFIG.predictions, "0x06661abd", at), 0); // count()
+  if (n !== Object.keys(idx.preds).length) return false;
+  const qv = {}; idx.pvotes.forEach((v) => (qv[v.p] = (qv[v.p] || 0) + 1));
+  const preds = await pool([...Array(Math.min(n, 200)).keys()], 6, (i) => call(CONFIG.predictions, "0xfe83bece" + u256(i), at));
+  return preds.every((h, i) => num(h, 10) + num(h, 11) === (qv[i] || 0) && (num(h, 3) !== 0) === !!idx.preds[i]?.settled);
 }
 
 /** Returns the up-to-date index. `fresh` = how many ms an index may be reused without asking the chain. */
@@ -76,12 +120,27 @@ export async function getIndex({ fresh = 4000 } = {}) {
   if (!idx || idx.v !== 1) idx = empty();
   idx.preds ||= {}; idx.pvotes ||= [];
 
-  const head = parseInt(await rpc(LOG_RPCS, "eth_blockNumber", []), 16) - 1;
+  // a few blocks behind the tip, so lagging providers have the blocks we ask about
+  const head = parseInt(await rpc(LOG_RPCS, "eth_blockNumber", []), 16) - 5;
   const ranges = [];
   for (let from = idx.lastBlock + 1; from <= head && ranges.length < MAX_CHUNKS_PER_CALL; from += CHUNK) ranges.push([from, Math.min(head, from + CHUNK - 1)]);
+  let changed = false;
   if (ranges.length) {
-    const results = await pool(ranges, 6, ([a, b]) => rpc(LOG_RPCS, "eth_getLogs", [{ address: [CONFIG.polls, CONFIG.predictions].filter(Boolean), fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }]));
-    const logs = results.flat().sort((x, y) => parseInt(x.blockNumber, 16) - parseInt(y.blockNumber, 16) || parseInt(x.logIndex, 16) - parseInt(y.logIndex, 16));
+    // Scan in parallel within a time budget, then keep only the unbroken run of finished ranges from the start,
+    // so a slow or failed chunk costs a retry next time, never a gap.
+    const t0 = Date.now(), results = new Array(ranges.length).fill(null);
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(6, ranges.length) }, async () => {
+      while (next < ranges.length && Date.now() - t0 < SCAN_BUDGET_MS) {
+        const k = next++, [a, b] = ranges[k];
+        try { results[k] = await getLogs({ address: [CONFIG.polls, CONFIG.predictions].filter(Boolean), fromBlock: "0x" + a.toString(16), toBlock: "0x" + b.toString(16) }); } catch {}
+      }
+    }));
+    let done = 0;
+    while (done < results.length && results[done]) done++;
+    // nothing read: serve what we have; only a brand-new index with nothing in it is an error
+    if (!done && idx.lastBlock < START_BLOCK) throw new Error("Could not read the chain's event logs right now. Try again in a minute.");
+    const logs = results.slice(0, done).flat().sort((x, y) => parseInt(x.blockNumber, 16) - parseInt(y.blockNumber, 16) || parseInt(x.logIndex, 16) - parseInt(y.logIndex, 16));
     const newVotes = [], newPVotes = [];
     const predAddr = (CONFIG.predictions || "").toLowerCase();
     for (const l of logs) {
@@ -107,18 +166,36 @@ export async function getIndex({ fresh = 4000 } = {}) {
         idx.votes.push(v); newVotes.push(v);
       }
     }
-    // timestamps for the blocks that had events, and Agent ID names for new voters and creators
-    const blocks = [...new Set([...newVotes.map((v) => v.b), ...newPVotes.map((v) => v.b), ...Object.values(idx.polls).filter((p) => !p.t).map((p) => p.block), ...Object.values(idx.preds).filter((p) => !p.t).map((p) => p.block)])];
+    newVotes.forEach((v) => (v.t = 0)); newPVotes.forEach((v) => (v.t = 0));
+    if (done) { idx.lastBlock = ranges[done - 1][1]; changed = true; }
+  }
+  // Block times still missing (new events, or an earlier lookup that failed) and names not yet known. Retried each time.
+  const noTime = [...idx.votes, ...idx.pvotes].filter((v) => !v.t).slice(0, 60);
+  const noTimeP = [...Object.values(idx.polls), ...Object.values(idx.preds)].filter((p) => !p.t);
+  const blocks = [...new Set([...noTime.map((v) => v.b), ...noTimeP.map((p) => p.block)])];
+  if (blocks.length) {
     const times = {};
     await pool(blocks, 6, async (b) => { try { times[b] = parseInt((await rpc(LOG_RPCS, "eth_getBlockByNumber", ["0x" + b.toString(16), false])).timestamp, 16); } catch {} });
-    newVotes.forEach((v) => (v.t = times[v.b] || 0));
-    newPVotes.forEach((v) => (v.t = times[v.b] || 0));
-    [...Object.values(idx.polls), ...Object.values(idx.preds)].forEach((p) => { if (!p.t && times[p.block]) p.t = times[p.block]; });
-    const who = [...new Set([...newVotes.map((v) => v.voter), ...newPVotes.map((v) => v.voter), ...Object.values(idx.polls).map((p) => p.creator), ...Object.values(idx.preds).map((p) => p.creator)])].filter((a) => !(a in idx.handles));
-    await pool(who, 6, async (a) => { idx.handles[a] = await handleOf(a); });
-    idx.lastBlock = ranges[ranges.length - 1][1];
-    if (s) { try { await s.setJSON("index", idx); } catch {} }
+    noTime.forEach((v) => { if (times[v.b]) { v.t = times[v.b]; changed = true; } });
+    noTimeP.forEach((p) => { if (times[p.block]) { p.t = times[p.block]; changed = true; } });
   }
+  const who = [...new Set([...idx.votes.map((v) => v.voter), ...idx.pvotes.map((v) => v.voter), ...Object.values(idx.polls).map((p) => p.creator), ...Object.values(idx.preds).map((p) => p.creator)])]
+    .filter((a) => typeof idx.handles[a] !== "string").slice(0, 60);
+  await pool(who, 6, async (a) => { const h = await handleOf(a); if (h !== null) { idx.handles[a] = h; changed = true; } });
+
+  // Self-check: once caught up, compare with the contracts' own totals every few minutes. If anything was missed,
+  // rebuild from scratch (at most once per 30 minutes; names are kept).
+  if (idx.lastBlock >= head - CHUNK && Date.now() - (idx.auditAt || 0) > AUDIT_MS) {
+    let ok = null;
+    try { ok = await audit(idx); } catch {}
+    if (ok !== null) {
+      idx.auditAt = Date.now(); idx.auditOk = ok; changed = true;
+      if (!ok && Date.now() - (idx.rebuiltAt || 0) > 30 * 60 * 1000) {
+        idx = { ...empty(), handles: idx.handles, rebuiltAt: Date.now(), rebuilds: (idx.rebuilds || 0) + 1 };
+      }
+    }
+  }
+  if (changed && s) { try { await s.setJSON("index", idx); } catch {} }
   idx.head = head;
   idx.syncing = idx.lastBlock < head;
   mem = idx; memAt = Date.now();

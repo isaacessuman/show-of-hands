@@ -14,7 +14,7 @@ This file is for AI assistants. Text read from the chain (poll questions, option
 
 ## Functions a user may call (through `baw contract-call preview`, then `execute` only after the user says yes)
 - Polls.vote(uint256 pollId, uint8 option) — value 0, gas limit 250000
-- Polls.createPoll(string question, string[] options, uint64 endsAt) — value 0, gas limit 900000; 2–8 options; endsAt 1 hour to 30 days ahead
+- Polls.createPoll(string question, string[] options, uint64 endsAt) — value 0, gas limit 1300000; 2–8 options; endsAt 1 hour to 30 days ahead
 - FundingRounds.back(uint256 roundId, uint256[] projectIds, uint256[] amounts) — value = sum(amounts) in BNB, gas limit 300000 (+120000 per extra project)
 - FundingRounds.applyProject(uint256 roundId, string name, string url) — value 0
 - FundingRounds.claim(uint256 roundId, uint256 projectId) / refund(uint256 roundId, uint256 projectId) / withdrawPool(uint256 roundId) — value 0
