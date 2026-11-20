@@ -134,6 +134,7 @@ const T = {
     // round page
     pool: "Matching pot", projects: "Projects", backers: "backers", raised: "raised", estMatch: "Est. match",
     limits: "Per backer per project", cap: "Max share per project", minBackers: "Projects need at least 5 different Agent IDs to get any matching.",
+    apK: "List your project", apP: "Builders and creators with an Agent ID and no token to sell can apply. Your wallet receives the gifts and the matching. The steward approves projects that follow the rules: no token sale or mint, nothing promised to backers, nobody paid to back.", apName: "Project name", apUrl: "Link (site, X or GitHub)", apGo: "Make apply instruction", apErr: "Add a project name (up to 64 characters).", apWhat: (n, r) => `list "${n}" in round ${r}. It sends no BNB; the payout goes to this wallet.`, apClosed: "Applications are closed for this round.", apOpenPill: "Applications open",
     backWith: "Back with", bnb: "BNB", backIt: "Get instruction", pending: "pending", approved: "approved", delisted: "delisted",
     gift: "Backing is a gift to a builder. It is not an investment and pays you nothing back.",
     roundWindow: "Backing window", finalised: "Finalised", cancelled: "Cancelled", fundingRound: "Funding round", roundNo: (id) => `Round ${id}`,
@@ -293,6 +294,7 @@ const T = {
     embedH: "把这个投票放到你的网站", embedP: "把这一行代码粘贴到任何网页，结果实时更新，投票者会被带到这里投票。", copyCode: "复制代码",
     pool: "配捐池", projects: "项目", backers: "位支持者", raised: "已筹", estMatch: "预计配捐",
     limits: "每位支持者每个项目", cap: "单个项目最高占比", minBackers: "项目需要至少 5 个不同的 Agent ID 支持才能获得配捐。",
+    apK: "申请加入本轮", apP: "持有 Agent ID、没有代币要卖的开发者和创作者都可以申请。赠与和配捐都打到你的钱包。管理人会批准遵守规则的项目：不卖币、不铸造、不向支持者承诺任何回报、不付钱买支持。", apName: "项目名称", apUrl: "链接（网站、X 或 GitHub）", apGo: "生成申请指令", apErr: "请填写项目名称（最多 64 个字符）。", apWhat: (n, r) => `把“${n}”加入第 ${r} 轮。不发送任何 BNB；款项打到这个钱包。`, apClosed: "本轮申请已截止。", apOpenPill: "开放申请中",
     backWith: "支持金额", bnb: "BNB", backIt: "获取指令", pending: "待审核", approved: "已通过", delisted: "已下架",
     gift: "支持是给建设者的赠与，不是投资，不会给你任何回报。",
     roundWindow: "支持时间", finalised: "已结算", cancelled: "已取消", fundingRound: "资助轮", roundNo: (id) => `第 ${id} 轮`,
@@ -555,7 +557,8 @@ function pollCard(P, big) {
 }
 const roundState = (r) => {
   const live = !r.finalised && !r.cancelled && now() >= r.startsAt && now() < r.endsAt;
-  return { live, label: r.cancelled ? t("cancelled") : r.finalised ? t("finalised") : live ? t("open") : t("closed") };
+  const soon = !r.finalised && !r.cancelled && now() < r.startsAt;
+  return { live: live || soon, backing: live, label: r.cancelled ? t("cancelled") : r.finalised ? t("finalised") : live ? t("open") : soon ? t("apOpenPill") : t("closed") };
 };
 
 async function home() {
@@ -1241,7 +1244,7 @@ async function roundPage(id) {
     example: false, finalised: r.finalised, pot: Number(formatEther(r.pool)), capFrac: Number(r.capBps) / 10000,
     min: Number(formatEther(r.minPerBacker)), max: Number(formatEther(r.maxPerBacker)),
     projects: shown.map((p) => ({ id: p.id, name: p.name, url: p.url, backers: Number(p.backers), raised: Number(formatEther(p.raised)),
-      S: Number(p.sumSqrt) / 1e9, w: Number(p.w) / 1e18, status: p.status, eligible: p.status === 2 && open, canEst: p.status === 2 && open, canBack: s.live && p.status === 2 })),
+      S: Number(p.sumSqrt) / 1e9, w: Number(p.w) / 1e18, status: p.status, eligible: p.status === 2 && open, canEst: p.status === 2 && open, canBack: s.backing && p.status === 2 })),
   };
   L.baseMatch = shown.map((p) => Number(formatEther(r.finalised ? p.matched : est[p.id] || 0n)));
   setTimeout(() => wireLedger(L, (i, val) => {
@@ -1267,7 +1270,35 @@ async function roundPage(id) {
     </dl>
     <p class="note">${t("minBackers")}</p><p class="note red" style="margin-top:8px">${t("gift")} ${t("untrusted")}</p>
     <p class="pmeta2" style="margin-top:16px"><a href="${CONFIG.explorer}/address/${CONFIG.fundingRounds}" target="_blank" rel="noopener">${t("explore")} ↗</a></p>
-    ${ledgerHTML(L)}</div>`;
+    ${ledgerHTML(L)}
+    ${applyHTML(r, id)}</div>`;
+}
+/** "List your project": a builder with an Agent ID gets the applyProject instruction in one step. */
+function applyHTML(r, id) {
+  const open = !r.finalised && !r.cancelled && Date.now() / 1000 < Number(r.endsAt);
+  if (!open) return `<p class="note" style="margin-top:32px">${t("apClosed")}</p>`;
+  setTimeout(() => {
+    const f = document.getElementById("apForm"); if (!f) return;
+    f.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = f.querySelector("#apName").value.trim(), url = f.querySelector("#apUrl").value.trim().slice(0, 200);
+      const err = f.querySelector("#apErr"), out = f.querySelector("#apInstr");
+      if (!name || new TextEncoder().encode(name).length > 64) { err.textContent = t("apErr"); out.innerHTML = ""; return; }
+      err.textContent = "";
+      const data = encodeFunctionData({ abi: ABI.FundingRounds, functionName: "applyProject", args: [BigInt(id), name, url] });
+      out.innerHTML = slip(instruction({ to: CONFIG.fundingRounds, data, gas: CONFIG.gas.applyProject, what: t("apWhat")(name, id) }), `${t("apK")} · ${name}`);
+      out.querySelector(".copy")?.focus({ preventScroll: true });
+    });
+  });
+  return `<section class="v30" style="margin-top:clamp(32px,4vw,48px)" aria-label="${esc(t("apK"))}"><div class="label">${t("apK")} <span class="cn">申请</span></div>
+    <p class="v30need">${esc(t("apP"))}</p>
+    <form id="apForm" novalidate style="display:grid;gap:14px;max-width:560px;margin-top:16px">
+      <div class="field"><label class="flabel" for="apName">${t("apName")}</label><input class="inp sm" id="apName" maxlength="64" autocomplete="off"></div>
+      <div class="field"><label class="flabel" for="apUrl">${t("apUrl")}</label><input class="inp sm" id="apUrl" maxlength="200" inputmode="url" autocomplete="off" placeholder="https://"></div>
+      <div class="err" id="apErr" role="alert"></div>
+      <div><button class="btn seal-btn" type="submit">${t("apGo")} <span class="arr">→</span></button></div>
+      <div id="apInstr" aria-live="polite"></div>
+    </form></section>`;
 }
 
 // ------------------------------------------------------------ ask page

@@ -1,5 +1,18 @@
 # Question of the Day posts (English + 中文)
 
+## Timetable (decided 2026-11-20)
+
+The Polls contract allows only ONE open poll per Agent ID. Poll A (#1) is open until Nov 27 18:45 UTC, so B–E run one after another, about 2 days each, from the project wallet 0x5cDA0229C5D11c2a1Ac5Ce0EfD07CABAea061Dc9:
+
+| Poll | Create at (UTC) | endsAt (UTC) | endsAt (unix) | EN post (Toronto) | ZH post (Toronto) |
+|---|---|---|---|---|---|
+| B | Nov 27, 19:00 | Nov 29, 18:45 | 1795977900 | Nov 27, ~3:00 PM | Nov 28, 3:00 AM |
+| C | Nov 29, 19:00 | Dec 1, 18:45 | 1796150700 | Nov 29, ~3:00 PM | Nov 30, 3:00 AM |
+| D | Dec 1, 19:00 | Dec 3, 18:45 | 1796323500 | Dec 1, ~3:00 PM | Dec 2, 3:00 AM |
+| E | Dec 3, 19:00 | Dec 5, 18:45 | 1796496300 | Dec 3, ~3:00 PM | Dec 4, 3:00 AM |
+
+A reminder task fires at each create time: it prepares the createPoll preview with baw, waits for the user's yes, then schedules the EN post (+ how-to-vote second post) and the ZH post with the real poll number.
+
 One poll a day from the project Agent ID. For each one:
 1. Create it on showofhands.io → Ask a question (paste the question and options exactly), with the poll lasting 3 days.
 2. Replace `<ID>` below with the new poll number.
